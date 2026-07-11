@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Subaru Forester Mission — Savings Dashboard</title>
+<meta name="theme-color" content="#0a0a0a">
+<meta name="description" content="A premium savings dashboard tracking the mission to buy a Subaru Forester by July 2027.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="assets/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/animations.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body data-theme="dark">
+
+<!-- ============== MOBILE TOP BAR ============== -->
+<header class="topbar">
+  <button class="icon-btn" id="btnMenuToggle" aria-label="Toggle menu">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <div class="topbar-brand">
+    <span class="brand-mark" id="topbarBrandMark">SF</span>
+    <span class="brand-name" id="topbarBrandName">FORESTER MISSION</span>
+  </div>
+  <button class="icon-btn" id="btnThemeToggle" aria-label="Toggle theme">
+    <svg viewBox="0 0 24 24"><path d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36-1.41-1.41M7.05 7.05 5.64 5.64m12.72 0-1.41 1.41M7.05 16.95l-1.41 1.41" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"/></svg>
+  </button>
+</header>
+
+<div class="app-shell">
+
+  <!-- ============== SIDEBAR ============== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-emblem">
+        <svg viewBox="0 0 48 48" class="emblem-svg"><circle cx="24" cy="24" r="22" fill="none" stroke="var(--gold)" stroke-width="1.5"/><path d="M12 30c1-6 4-12 12-12s11 6 12 12" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="31" r="3" fill="var(--gold)"/><circle cx="32" cy="31" r="3" fill="var(--gold)"/></svg>
+      </div>
+      <div>
+        <div class="brand-title" id="sidebarBrandTitle">FORESTER</div>
+        <div class="brand-sub" id="sidebarBrandSub">MISSION</div>
+      </div>
+    </div>
+
+    <div class="goal-switcher-wrap">
+      <label class="goal-switcher-label">Active Goal</label>
+      <select id="goalSwitcher" class="goal-switcher"></select>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-page="dashboard">
+        <span class="nav-ico">◈</span> Dashboard
+      </button>
+      <button class="nav-item" data-page="entry">
+        <span class="nav-ico">✎</span> Daily Entry
+      </button>
+      <button class="nav-item" data-page="history">
+        <span class="nav-ico">☰</span> History
+      </button>
+      <button class="nav-item" data-page="analytics">
+        <span class="nav-ico">▤</span> Analytics
+      </button>
+      <button class="nav-item" data-page="calendar">
+        <span class="nav-ico">▦</span> Calendar
+      </button>
+      <button class="nav-item" data-page="achievements">
+        <span class="nav-ico">★</span> Achievements
+      </button>
+      <button class="nav-item" data-page="settings">
+        <span class="nav-ico">⚙</span> Settings
+      </button>
+      <button class="nav-item" data-page="about">
+        <span class="nav-ico">ⓘ</span> About
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="mini-quote" id="sidebarQuote"></div>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ============== MAIN CONTENT ============== -->
+  <main class="content">
+
+    <!-- ===================== DASHBOARD PAGE ===================== -->
+    <section class="page active" id="page-dashboard">
+
+      <div class="hero">
+        <div class="hero-carbon"></div>
+        <div class="hero-inner">
+          <div class="hero-svg" id="heroImageWrap">
+            <img id="heroPhoto" class="hero-photo" alt="Goal photo" hidden>
+            <svg viewBox="0 0 400 160" class="car-illustration" id="heroSvgFallback">
+              <ellipse cx="200" cy="140" rx="170" ry="8" fill="rgba(0,0,0,0.4)"/>
+              <path d="M40 118 C40 90 65 75 95 70 L130 45 C145 35 165 30 190 30 L250 30 C270 30 285 38 295 52 L320 72 C345 76 365 88 368 108 L368 118 L40 118 Z"
+                    fill="none" stroke="var(--gold)" stroke-width="2.2"/>
+              <path d="M130 45 L145 70 L295 70 L295 52" fill="none" stroke="var(--gold)" stroke-width="1.6" opacity="0.7"/>
+              <line x1="200" y1="45" x2="200" y2="70" stroke="var(--gold)" stroke-width="1.2" opacity="0.5"/>
+              <circle cx="105" cy="118" r="20" fill="#0d0d0d" stroke="var(--gold)" stroke-width="2.4"/>
+              <circle cx="105" cy="118" r="7" fill="var(--gold)"/>
+              <circle cx="305" cy="118" r="20" fill="#0d0d0d" stroke="var(--gold)" stroke-width="2.4"/>
+              <circle cx="305" cy="118" r="7" fill="var(--gold)"/>
+              <rect x="55" y="95" width="18" height="6" rx="2" fill="var(--gold)" opacity="0.85"/>
+              <rect x="335" y="95" width="16" height="6" rx="2" fill="var(--gold)" opacity="0.85"/>
+            </svg>
+          </div>
+          <h1 class="hero-title" id="heroTitle">SUBARU FORESTER MISSION</h1>
+          <p class="hero-subtitle">Every day closer to the goal.</p>
+          <div class="hero-stats">
+            <div class="hero-stat"><span class="hero-stat-label">Start Date</span><span class="hero-stat-value" id="heroStart">—</span></div>
+            <div class="hero-stat"><span class="hero-stat-label">Goal</span><span class="hero-stat-value" id="heroGoal">KSh 600,000</span></div>
+            <div class="hero-stat"><span class="hero-stat-label">Stretch Goal</span><span class="hero-stat-value" id="heroStretch">KSh 650,000</span></div>
+            <div class="hero-stat"><span class="hero-stat-label">Deadline</span><span class="hero-stat-value" id="heroDeadline">1 Jul 2027</span></div>
+            <div class="hero-stat"><span class="hero-stat-label">Internal Goal</span><span class="hero-stat-value" id="heroInternal">1 Jun 2027</span></div>
+          </div>
+          <div class="hero-countdown">
+            <div class="countdown-chip"><strong id="countdownDays">—</strong><span>days to deadline</span></div>
+            <div class="countdown-chip alt"><strong id="countdownInternalDays">—</strong><span>days to internal goal</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="quote-strip"><span class="quote-mark">“</span><span id="quoteText"></span></div>
+
+      <!-- Progress + gauge -->
+      <div class="progress-row">
+        <div class="glass-card progress-card">
+          <div class="progress-card-head">
+            <span class="card-eyebrow">MISSION PROGRESS</span>
+            <span class="progress-pct" id="progressPercentText">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progressBarFill"></div>
+          </div>
+          <div class="progress-meta">
+            <span id="progressAmountText">KSh 0</span>
+            <span id="progressRemainingText">KSh 600,000 remaining</span>
+          </div>
+        </div>
+
+        <div class="glass-card gauge-card">
+          <span class="card-eyebrow">COMPLETION</span>
+          <svg viewBox="0 0 160 160" class="gauge-svg">
+            <circle cx="80" cy="80" r="68" class="gauge-bg"/>
+            <circle cx="80" cy="80" r="68" class="gauge-fg" id="gaugeCircle"/>
+          </svg>
+          <div class="gauge-center">
+            <span id="gaugePercentText">0%</span>
+            <small>Complete</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI grid -->
+      <div class="kpi-grid">
+        <div class="glass-card kpi-card kpi-gold">
+          <span class="kpi-label">Current Savings</span>
+          <span class="kpi-value" id="kpiCurrentSavings">KSh 0</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Remaining Amount</span>
+          <span class="kpi-value" id="kpiRemaining">KSh 600,000</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Today's Target</span>
+          <span class="kpi-value" id="kpiTodayTarget">KSh 1,820</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label" id="kpiPrintTargetLabel">Printing Target</span>
+          <span class="kpi-value" id="kpiPrintTarget">KSh 300</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label" id="kpiTradeTargetLabel">Trading Target</span>
+          <span class="kpi-value" id="kpiTradeTarget">KSh 1,520</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Days Remaining</span>
+          <span class="kpi-value" id="kpiDaysRemaining">—</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Est. Purchase Date (your actual pace)</span>
+          <span class="kpi-value small" id="kpiEstPurchase">—</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Est. Purchase Date (if you hit daily target every day)</span>
+          <span class="kpi-value small" id="kpiEstPurchaseAtTarget">—</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Daily Average</span>
+          <span class="kpi-value" id="kpiDailyAvg">KSh 0</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Weekly Average</span>
+          <span class="kpi-value" id="kpiWeeklyAvg">KSh 0</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Monthly Average</span>
+          <span class="kpi-value" id="kpiMonthlyAvg">KSh 0</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Current Streak</span>
+          <span class="kpi-value" id="kpiCurrentStreak">0 days</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Longest Streak</span>
+          <span class="kpi-value" id="kpiLongestStreak">0 days</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Days Ahead / Behind</span>
+          <span class="kpi-value" id="kpiAheadBehind">0</span>
+        </div>
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">Savings Percentage</span>
+          <span class="kpi-value" id="kpiPercentage">0%</span>
+        </div>
+      </div>
+
+      <!-- Milestones -->
+      <div class="section-head">
+        <h2>Milestones</h2>
+      </div>
+      <div class="milestones-row" id="milestonesRow"></div>
+
+      <!-- Featured charts -->
+      <div class="section-head"><h2>Savings Growth</h2></div>
+      <div class="glass-card chart-card"><canvas id="chartGrowth"></canvas></div>
+
+      <div class="section-head"><h2>Goal Projection</h2></div>
+      <div class="glass-card chart-card"><canvas id="chartProjection"></canvas></div>
+
+    </section>
+
+    <!-- ===================== DAILY ENTRY PAGE ===================== -->
+    <section class="page" id="page-entry">
+      <div class="section-head"><h2>Daily Entry</h2><p class="section-sub">Log today's printing income, trading profit, and expenses.</p></div>
+
+      <form class="glass-card entry-form" id="entryForm">
+        <input type="hidden" id="inputDate">
+        <div class="form-row">
+          <label>Date</label>
+          <input type="date" id="inputDatePicker" required>
+        </div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label id="labelPrinting">Printing Income</label>
+            <input type="number" step="0.01" min="0" id="inputPrinting" placeholder="0.00">
+          </div>
+          <div class="form-row">
+            <label id="labelTrading">Trading Profit</label>
+            <input type="number" step="0.01" min="0" id="inputTrading" placeholder="0.00">
+          </div>
+          <div class="form-row">
+            <label>Other Income</label>
+            <input type="number" step="0.01" min="0" id="inputOther" placeholder="0.00">
+          </div>
+          <div class="form-row">
+            <label>Expenses</label>
+            <input type="number" step="0.01" min="0" id="inputExpenses" placeholder="0.00">
+          </div>
+          <div class="form-row">
+            <label>Expense Category</label>
+            <select id="inputExpenseCategory">
+              <option value="">—</option>
+              <option value="Transport">Transport</option>
+              <option value="Data/Airtime">Data/Airtime</option>
+              <option value="Materials">Materials</option>
+              <option value="Food">Food</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Notes</label>
+          <textarea id="inputNotes" rows="3" placeholder="Anything worth remembering about today..."></textarea>
+        </div>
+        <div class="entry-net-preview glass-card-inset">
+          Net savings today: <strong id="entryNetPreview">KSh 0</strong>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-gold" id="btnSaveToday">Save Today</button>
+          <button type="button" class="btn btn-outline" id="btnDeleteLast">Delete Last Entry</button>
+          <button type="button" class="btn btn-outline btn-danger" id="btnResetDashboard">Reset This Goal</button>
+          <button type="button" class="btn btn-ghost" id="btnCancelEntry">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ===================== HISTORY PAGE ===================== -->
+    <section class="page" id="page-history">
+      <div class="section-head">
+        <h2>Edit History</h2>
+        <div class="section-actions">
+          <input type="search" id="historySearch" placeholder="Search by date or note...">
+          <button class="btn btn-outline" id="btnExportCSV">Export CSV</button>
+          <button class="btn btn-outline" id="btnExportExcel">Export Excel</button>
+          <button class="btn btn-outline" id="btnExportPDF">Export PDF</button>
+        </div>
+      </div>
+      <div class="glass-card table-card">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>Printing</th><th>Trading</th><th>Other</th><th>Expenses</th><th>Net Savings</th><th>Running Total</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+        <div class="table-empty" id="historyEmpty">No entries yet. Log your first day on the Daily Entry page.</div>
+      </div>
+
+      <div class="section-head"><h2>Backup &amp; Restore</h2><p class="section-sub">Backups include every goal, not just the active one.</p></div>
+      <div class="glass-card backup-row">
+        <button class="btn btn-gold" id="btnBackup">Download Backup</button>
+        <label class="btn btn-outline file-btn">
+          Restore Backup
+          <input type="file" id="fileRestore" accept="application/json" hidden>
+        </label>
+      </div>
+    </section>
+
+    <!-- ===================== ANALYTICS PAGE ===================== -->
+    <section class="page" id="page-analytics">
+      <div class="section-head"><h2>Analytics</h2></div>
+
+      <div class="kpi-grid" id="analyticsStatsGrid"></div>
+
+      <div class="section-head"><h2>What-If Pace Calculator</h2><p class="section-sub">See how a different daily savings rate changes your finish date.</p></div>
+      <div class="glass-card whatif-card">
+        <div class="whatif-controls">
+          <input type="range" id="whatifSlider" min="0" max="5000" step="50" value="1820">
+          <div class="whatif-input-wrap">
+            <input type="number" id="whatifInput" min="0" value="1820">
+            <span>/ day</span>
+          </div>
+        </div>
+        <p class="whatif-result" id="whatifResult">Adjust the slider to see a projection.</p>
+      </div>
+
+      <div class="chart-pair">
+        <div class="glass-card chart-card">
+          <div class="chart-card-title">Weekday Patterns</div>
+          <canvas id="chartWeekday"></canvas>
+        </div>
+        <div class="glass-card">
+          <div class="chart-card-title">Expense Breakdown</div>
+          <div class="chart-card small-chart"><canvas id="chartExpenseCategory"></canvas></div>
+          <ul class="category-totals-list" id="categoryTotalsList"></ul>
+        </div>
+      </div>
+      <p class="weekday-insight-text" id="weekdayInsightText"></p>
+
+      <div class="section-head"><h2>Daily Income</h2></div>
+      <div class="glass-card chart-card"><canvas id="chartDaily"></canvas></div>
+
+      <div class="chart-pair">
+        <div class="glass-card chart-card">
+          <div class="chart-card-title">Weekly Income</div>
+          <canvas id="chartWeekly"></canvas>
+        </div>
+        <div class="glass-card chart-card">
+          <div class="chart-card-title">Monthly Income</div>
+          <canvas id="chartMonthly"></canvas>
+        </div>
+      </div>
+
+      <div class="section-head"><h2>Printing vs Trading</h2></div>
+      <div class="glass-card chart-card"><canvas id="chartPrintTrade"></canvas></div>
+
+      <div class="section-head"><h2>Expenses</h2></div>
+      <div class="glass-card chart-card"><canvas id="chartExpense"></canvas></div>
+    </section>
+
+    <!-- ===================== CALENDAR PAGE ===================== -->
+    <section class="page" id="page-calendar">
+      <div class="section-head">
+        <h2>Calendar</h2>
+        <div class="cal-nav">
+          <button class="icon-btn" id="calPrev">‹</button>
+          <span id="calendarLabel">—</span>
+          <button class="icon-btn" id="calNext">›</button>
+        </div>
+      </div>
+      <div class="glass-card cal-legend">
+        <span><i class="dot dot-hit"></i> Target achieved</span>
+        <span><i class="dot dot-partial"></i> Partial</span>
+        <span><i class="dot dot-missed"></i> Missed</span>
+        <span><i class="dot dot-none"></i> No data</span>
+      </div>
+      <div class="glass-card">
+        <div class="cal-grid" id="calendarGrid"></div>
+      </div>
+    </section>
+
+    <!-- ===================== ACHIEVEMENTS PAGE ===================== -->
+    <section class="page" id="page-achievements">
+      <div class="section-head"><h2>Achievements</h2><p class="section-sub">Unlocked badges on the road to the Forester.</p></div>
+      <div class="achievements-grid" id="achievementsGrid"></div>
+    </section>
+
+    <!-- ===================== SETTINGS PAGE ===================== -->
+    <section class="page" id="page-settings">
+      <div class="section-head"><h2>Settings</h2></div>
+      <form class="glass-card entry-form" id="settingsForm">
+
+        <div class="section-head">
+          <h2 style="font-size:15px;">Manage Goals</h2>
+          <button type="button" class="btn btn-outline" id="btnAddGoalFromSettings">➕ New Goal</button>
+        </div>
+        <div class="glass-card manage-goals-card" id="manageGoalsList"></div>
+
+        <div class="section-head" style="margin-top:0;"><h2 style="font-size:15px;">Your Goal</h2></div>
+        <div class="form-grid">
+          <div class="form-row"><label>Goal Name</label><input type="text" id="setGoalName" placeholder="e.g. Subaru Forester, New Laptop, Emergency Fund"></div>
+          <div class="form-row"><label>Goal Amount (KSh)</label><input type="number" id="setGoal"></div>
+          <div class="form-row"><label>Stretch Goal (KSh)</label><input type="number" id="setStretchGoal"></div>
+          <div class="form-row"><label>Start Date</label><input type="date" id="setStartDate"></div>
+          <div class="form-row"><label>Deadline</label><input type="date" id="setDeadline"></div>
+          <div class="form-row"><label>Internal Goal Date</label><input type="date" id="setInternalDeadline"></div>
+        </div>
+
+        <div class="form-row">
+          <label>Goal Photo</label>
+          <div class="photo-upload-row">
+            <div class="goal-photo-preview" id="goalPhotoPreviewWrap">
+              <img id="goalPhotoPreview" alt="Goal photo preview" hidden>
+              <span id="goalPhotoPlaceholder">No photo</span>
+            </div>
+            <div class="photo-upload-actions">
+              <label class="btn btn-outline file-btn">
+                Upload Photo
+                <input type="file" id="setGoalPhoto" accept="image/*" hidden>
+              </label>
+              <button type="button" class="btn btn-ghost" id="btnRemoveGoalPhoto">Remove Photo</button>
+              <p class="section-sub" style="margin:6px 0 0;">Shown in the hero section instead of the default illustration. Large images are automatically resized.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>Mission Statement</label>
+          <textarea id="setMission" rows="3"></textarea>
+        </div>
+
+        <div class="section-head"><h2 style="font-size:15px;">Income Sources &amp; Targets</h2></div>
+        <div class="form-grid">
+          <div class="form-row"><label>Daily Target (KSh)</label><input type="number" id="setDailyTarget"></div>
+          <div class="form-row"><label>Income Source 1 — Label</label><input type="text" id="setLabel1" placeholder="e.g. Printing Income"></div>
+          <div class="form-row"><label>Income Source 1 — Target (KSh)</label><input type="number" id="setPrintTarget"></div>
+          <div class="form-row"><label>Income Source 2 — Label</label><input type="text" id="setLabel2" placeholder="e.g. Trading Profit"></div>
+          <div class="form-row"><label>Income Source 2 — Target (KSh)</label><input type="number" id="setTradeTarget"></div>
+        </div>
+
+        <div class="section-head"><h2 style="font-size:15px;">Security</h2></div>
+        <div class="glass-card-inset" style="margin-bottom:14px;">
+          PIN protects opening the app and locks critical actions (Reset Everything,
+          Restore Backup). This is a local privacy screen, not encryption — anyone
+          with direct access to this device's browser storage could still bypass it.
+        </div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label id="pinStatusLabel">PIN Lock — Disabled</label>
+            <div class="pin-fields">
+              <input type="password" inputmode="numeric" pattern="[0-9]*" id="setPinNew" maxlength="8" placeholder="New PIN (4–8 digits)" autocomplete="off">
+              <input type="password" inputmode="numeric" pattern="[0-9]*" id="setPinConfirm" maxlength="8" placeholder="Confirm PIN" autocomplete="off">
+            </div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" id="btnSavePin">Set / Update PIN</button>
+          <button type="button" class="btn btn-outline btn-danger" id="btnRemovePin" hidden>Remove PIN</button>
+        </div>
+
+        <div class="section-head"><h2 style="font-size:15px;">Display</h2></div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label>Theme</label>
+            <select id="setTheme"><option value="dark">Dark (Luxury Black)</option><option value="light">Light</option></select>
+          </div>
+          <div class="form-row">
+            <label>Currency</label>
+            <select id="setCurrency"><option value="KSh">KSh</option><option value="USD">USD</option><option value="EUR">EUR</option></select>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-gold" id="btnSaveSettings">Save Settings</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ===================== ABOUT PAGE ===================== -->
+    <section class="page" id="page-about">
+      <div class="section-head"><h2>About This Mission</h2></div>
+      <div class="glass-card about-card">
+        <p class="about-mission" id="aboutMissionText">"My mission is to own a Subaru Forester before July 1st 2027 through disciplined saving, consistent trading, and business growth."</p>
+        <hr class="gold-divider">
+        <h3>Keyboard Shortcuts</h3>
+        <ul class="shortcut-list">
+          <li><kbd>1</kbd>–<kbd>8</kbd> Jump between pages</li>
+          <li><kbd>N</kbd> New daily entry</li>
+          <li><kbd>Ctrl</kbd>+<kbd>S</kbd> Save today's entry</li>
+          <li><kbd>Esc</kbd> Close dialogs</li>
+        </ul>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============== CREATE GOAL MODAL ============== -->
+<div class="modal-overlay" id="createGoalOverlay">
+  <div class="modal-box glass-card">
+    <h3>Create a New Goal</h3>
+    <p>Start tracking a new goal with its own name, targets, and history.</p>
+    <form id="createGoalForm">
+      <div class="form-row"><label>Goal Name</label><input type="text" id="newGoalName" placeholder="e.g. New Laptop" required></div>
+      <div class="form-row"><label>Target Amount</label><input type="number" id="newGoalAmount" placeholder="e.g. 150000" required></div>
+      <div class="form-row"><label>Deadline</label><input type="date" id="newGoalDeadline" required></div>
+      <p class="section-sub">You can fine-tune photo, income labels, and everything else afterward in Settings.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="createGoalCancel">Cancel</button>
+        <button type="submit" class="btn btn-gold">Create Goal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============== PIN LOCK SCREEN ============== -->
+<div class="lock-overlay" id="lockScreen">
+  <div class="lock-box glass-card">
+    <div class="brand-emblem lock-emblem">
+      <svg viewBox="0 0 48 48" class="emblem-svg"><circle cx="24" cy="24" r="22" fill="none" stroke="var(--gold)" stroke-width="1.5"/><path d="M12 30c1-6 4-12 12-12s11 6 12 12" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="31" r="3" fill="var(--gold)"/><circle cx="32" cy="31" r="3" fill="var(--gold)"/></svg>
+    </div>
+    <h2 id="lockTitle">Enter your PIN</h2>
+    <p class="lock-sub" id="lockGoalName">Your goal is locked.</p>
+    <form id="lockForm">
+      <input type="password" inputmode="numeric" pattern="[0-9]*" id="lockPinInput" maxlength="8" placeholder="••••" autocomplete="off">
+      <p class="lock-error" id="lockError"></p>
+      <button type="submit" class="btn btn-gold" id="btnUnlock">Unlock</button>
+    </form>
+    <button class="lock-forgot" id="btnForgotPin">Forgot your PIN?</button>
+  </div>
+</div>
+
+<!-- ============== PIN PROMPT (for critical actions) ============== -->
+<div class="modal-overlay" id="pinPromptOverlay">
+  <div class="modal-box glass-card">
+    <h3 id="pinPromptTitle">Confirm PIN</h3>
+    <p id="pinPromptMessage">This action is protected. Enter your PIN to continue.</p>
+    <form id="pinPromptForm">
+      <input type="password" inputmode="numeric" pattern="[0-9]*" id="pinPromptInput" maxlength="8" placeholder="••••" autocomplete="off">
+      <p class="lock-error" id="pinPromptError"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="pinPromptCancel">Cancel</button>
+        <button type="submit" class="btn btn-danger">Confirm</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============== FORGOT PIN / RECOVERY MODAL ============== -->
+<div class="modal-overlay" id="forgotPinOverlay">
+  <div class="modal-box glass-card">
+    <h3>Forgot your PIN?</h3>
+    <p>This app has no server, so there's no way to recover a lost PIN — the
+      only option is to erase all local data (entries, settings, achievements,
+      and your PIN) and start over. Consider restoring from a backup file
+      afterward if you have one.</p>
+    <p>Type <strong>ERASE</strong> below to confirm.</p>
+    <input type="text" id="forgotPinConfirmText" placeholder="Type ERASE" autocomplete="off">
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="forgotPinCancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="forgotPinConfirm">Erase Everything</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============== CONFIRM MODAL ============== -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box glass-card">
+    <h3 id="modalTitle">Are you sure?</h3>
+    <p id="modalMessage"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modalCancel">Cancel</button>
+      <button class="btn btn-danger" id="modalConfirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============== MILESTONE CELEBRATION OVERLAY ============== -->
+<div class="celebrate-overlay" id="celebrateOverlay">
+  <div class="celebrate-box">
+    <div class="celebrate-icon">🏆</div>
+    <h2 id="celebrateTitle">Milestone Unlocked!</h2>
+    <p id="celebrateMessage"></p>
+    <button class="btn btn-gold" id="celebrateClose">Keep Going</button>
+  </div>
+</div>
+
+<!-- ============== SCRIPTS ============== -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

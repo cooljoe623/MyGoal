@@ -1,0 +1,53 @@
+/* ============================================================
+   RESPONSIVE.CSS — tablet & mobile breakpoints
+   ============================================================ */
+
+@media (max-width: 1100px) {
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  .milestones-row { grid-template-columns: repeat(4, 1fr); }
+  .achievements-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .content { padding: 24px 20px 70px; }
+  .progress-row { grid-template-columns: 1fr; }
+  .chart-pair { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 860px) {
+  .topbar { display: flex; }
+  .sidebar {
+    position: fixed; left: 0; top: 0; height: 100vh; z-index: 60;
+    transform: translateX(-105%); transition: transform .3s ease;
+  }
+  .sidebar.open { transform: translateX(0); box-shadow: 20px 0 40px rgba(0,0,0,0.5); }
+  .sidebar-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 55;
+  }
+  .sidebar-overlay.show { display: block; }
+  .app-shell { flex-direction: column; }
+  .content { max-width: 100%; }
+}
+
+@media (max-width: 640px) {
+  .milestones-row { grid-template-columns: repeat(2, 1fr); }
+  .achievements-grid { grid-template-columns: repeat(2, 1fr); }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .hero { padding: 32px 18px 26px; }
+  .hero-stats { gap: 10px; }
+  .hero-stat { min-width: 130px; padding: 10px 14px; }
+  .section-head { flex-direction: column; align-items: flex-start; }
+  .section-actions { width: 100%; }
+  .section-actions input, .section-actions button { flex: 1; }
+  .cal-grid { gap: 4px; }
+  .cal-cell { padding: 4px; font-size: 10px; border-radius: 6px; }
+}
+
+@media (max-width: 420px) {
+  .kpi-grid, .milestones-row, .achievements-grid { grid-template-columns: 1fr 1fr; }
+  .hero-title { font-size: 24px; }
+  .form-actions { flex-direction: column; }
+  .form-actions .btn { width: 100%; }
+}
