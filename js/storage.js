@@ -82,7 +82,8 @@ const Storage = (() => {
         dailyTarget: oldSettings.dailyTarget || DEFAULT_GOAL_FIELDS.dailyTarget,
         incomeTarget1: oldSettings.printingTarget || DEFAULT_GOAL_FIELDS.incomeTarget1,
         incomeTarget2: oldSettings.tradingTarget || DEFAULT_GOAL_FIELDS.incomeTarget2,
-        createdAt: (oldMeta && oldMeta.createdAt) || new Date().toISOString()
+        createdAt: (oldMeta && oldMeta.createdAt) || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
 
       const migratedEntries = (oldEntries || []).map(e => ({
@@ -129,7 +130,8 @@ const Storage = (() => {
     const goal = Object.assign({}, DEFAULT_GOAL_FIELDS, {
       id: Utils.uid(),
       startDate: Utils.todayStr(),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
     _write(KEYS.goals, [goal]);
     _write(KEYS.activeGoal, goal.id);
@@ -171,7 +173,8 @@ const Storage = (() => {
     const goal = Object.assign({}, DEFAULT_GOAL_FIELDS, fields, {
       id: Utils.uid(),
       startDate: (fields && fields.startDate) || Utils.todayStr(),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
     goals.push(goal);
     _write(KEYS.goals, goals);
@@ -182,7 +185,7 @@ const Storage = (() => {
     const goals = getGoals();
     const idx = goals.findIndex(g => g.id === id);
     if (idx < 0) return null;
-    goals[idx] = Object.assign({}, goals[idx], patch);
+    goals[idx] = Object.assign({}, goals[idx], patch, { updatedAt: new Date().toISOString() });
     _write(KEYS.goals, goals);
     return goals[idx];
   }
@@ -372,7 +375,8 @@ const Storage = (() => {
         dailyTarget: s.dailyTarget || DEFAULT_GOAL_FIELDS.dailyTarget,
         incomeTarget1: s.printingTarget || DEFAULT_GOAL_FIELDS.incomeTarget1,
         incomeTarget2: s.tradingTarget || DEFAULT_GOAL_FIELDS.incomeTarget2,
-        createdAt: meta.createdAt || new Date().toISOString()
+        createdAt: meta.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
       const entries = (Array.isArray(data.entries) ? data.entries : []).map(e => ({
         id: e.id || Utils.uid(), goalId: id, date: e.date,
@@ -395,6 +399,93 @@ const Storage = (() => {
     throw new Error('Unrecognized backup format');
   }
 
+  /* ---------- Cloud sync merge (last-write-wins per record) ---------- */
+  /**
+   * Merge a remote backup (same shape as exportBackup()) into local data.
+   * Strategy: union of goals/entries by id/date-key, keeping whichever side's
+   * copy has the newer `updatedAt` when the same record exists on both sides.
+   * Achievements are unioned per goal (unlocking is monotonic — never wrong
+   * to keep both sides' unlocks). `theme` and the active goal selection stay
+   * local to each device and are never overwritten by a remote pull.
+   *
+   * NOTE ON DELETIONS: this merge has no tombstone/delete-log, so if an
+   * entry or goal was deleted on one device, a stale copy still present on
+   * another un-synced device can reappear after merging. For a personal,
+   * mostly-online app this is an acceptable trade-off against the much
+   * larger complexity of a real conflict-free sync system — see README.
+   */
+  function mergeRemoteBackup(remote) {
+    if (!remote || !Array.isArray(remote.goals)) {
+      return { addedGoals: 0, updatedGoals: 0, addedEntries: 0, updatedEntries: 0 };
+    }
+
+    const localGoals = getGoals();
+    const localGoalMap = new Map(localGoals.map(g => [g.id, g]));
+    let addedGoals = 0, updatedGoals = 0;
+
+    remote.goals.forEach(rg => {
+      const lg = localGoalMap.get(rg.id);
+      if (!lg) {
+        localGoalMap.set(rg.id, rg);
+        addedGoals++;
+      } else {
+        const rTime = Date.parse(rg.updatedAt || 0) || 0;
+        const lTime = Date.parse(lg.updatedAt || 0) || 0;
+        if (rTime > lTime) {
+          localGoalMap.set(rg.id, rg);
+          updatedGoals++;
+        }
+      }
+    });
+    _write(KEYS.goals, Array.from(localGoalMap.values()));
+
+    const localEntries = _read(KEYS.entries, []);
+    const localEntryMap = new Map(localEntries.map(e => [`${e.goalId}::${e.date}`, e]));
+    let addedEntries = 0, updatedEntries = 0;
+
+    (Array.isArray(remote.entries) ? remote.entries : []).forEach(re => {
+      const key = `${re.goalId}::${re.date}`;
+      const le = localEntryMap.get(key);
+      if (!le) {
+        localEntryMap.set(key, re);
+        addedEntries++;
+      } else {
+        const rTime = Date.parse(re.updatedAt || 0) || 0;
+        const lTime = Date.parse(le.updatedAt || 0) || 0;
+        if (rTime > lTime) {
+          localEntryMap.set(key, re);
+          updatedEntries++;
+        }
+      }
+    });
+    _write(KEYS.entries, Array.from(localEntryMap.values()));
+
+    const localAch = _read(KEYS.achievements, {});
+    const remoteAch = remote.achievements && typeof remote.achievements === 'object' ? remote.achievements : {};
+    Object.keys(remoteAch).forEach(goalId => {
+      const merged = new Set([...(localAch[goalId] || []), ...(remoteAch[goalId] || [])]);
+      localAch[goalId] = Array.from(merged);
+    });
+    _write(KEYS.achievements, localAch);
+
+    if (!_read(KEYS.activeGoal, null) && remote.activeGoalId) {
+      _write(KEYS.activeGoal, remote.activeGoalId);
+    }
+
+    if (remote.settings) {
+      const localSettings = getAppSettings();
+      const patch = {};
+      if (remote.settings.currency) patch.currency = remote.settings.currency;
+      if (remote.settings.pinEnabled !== undefined && !localSettings.pinHash) {
+        patch.pinEnabled = remote.settings.pinEnabled;
+        patch.pinHash = remote.settings.pinHash;
+      }
+      if (Object.keys(patch).length) saveAppSettings(patch);
+    }
+
+    return { addedGoals, updatedGoals, addedEntries, updatedEntries };
+  }
+
   return {
     KEYS,
     migrateIfNeeded,
@@ -406,6 +497,6 @@ const Storage = (() => {
     hasMilestoneFlag, setMilestoneFlag,
     setPin, disablePin, verifyPin, isPinEnabled,
     resetGoalData, eraseEverything,
-    exportBackup, restoreBackup
+    exportBackup, restoreBackup, mergeRemoteBackup
   };
 })();

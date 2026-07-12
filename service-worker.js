@@ -5,7 +5,7 @@
 // Bump this version string every time app files change — it's the only
 // thing that forces browsers to actually fetch the new files instead of
 // silently continuing to serve a stale cached copy forever.
-const CACHE_NAME = 'forester-mission-v2';
+const CACHE_NAME = 'forester-mission-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -51,7 +51,15 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
-  const isSameOrigin = new URL(req.url).origin === location.origin;
+  const url = new URL(req.url);
+
+  // Never intercept Firebase Auth/Firestore traffic — these use long-lived
+  // streaming/polling connections that a caching service worker can break.
+  if (/googleapis\.com|firebaseio\.com|firebaseapp\.com|gstatic\.com\/firebasejs/.test(url.hostname + url.pathname)) {
+    return;
+  }
+
+  const isSameOrigin = url.origin === location.origin;
   if (!isSameOrigin) {
     // Third-party CDN assets (fonts, Chart.js, etc.) — cache-first is fine here.
     event.respondWith(

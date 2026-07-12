@@ -28,12 +28,14 @@ const App = (() => {
     bindPinLock();
     bindWhatIfCalculator();
     bindCreateGoalModal();
+    bindSyncUI();
     CalendarView.init();
 
     document.getElementById('quoteText').textContent = Utils.quoteOfTheDay();
     document.getElementById('sidebarQuote').textContent = Utils.quoteOfTheDay();
 
     setDefaultEntryDate();
+    Sync.init();
     renderEverything();
     registerServiceWorker();
     checkLockOnStartup();
@@ -56,6 +58,7 @@ const App = (() => {
     Charts.renderAll(stats);
     CalendarView.render();
     prefillEntryFormFromDate(document.getElementById('inputDatePicker').value);
+    Sync.scheduleSync();
   }
 
   /* ---------------------------------------------------------
@@ -794,6 +797,116 @@ const App = (() => {
   }
 
   /* ---------------------------------------------------------
+     CLOUD SYNC (Firebase email/password)
+  --------------------------------------------------------- */
+  function bindSyncUI() {
+    renderSyncStatus();
+
+    document.getElementById('btnSyncSignIn').addEventListener('click', async () => {
+      const email = document.getElementById('syncEmail').value.trim();
+      const password = document.getElementById('syncPassword').value;
+      if (!email || !password) { Notify.error('Enter your email and password.'); return; }
+      try {
+        await Sync.signIn(email, password);
+        Notify.success('Signed in — syncing…');
+      } catch (err) {
+        Notify.error(err.message);
+      }
+    });
+
+    document.getElementById('btnSyncSignUp').addEventListener('click', async () => {
+      const email = document.getElementById('syncEmail').value.trim();
+      const password = document.getElementById('syncPassword').value;
+      if (!email || !password) { Notify.error('Enter an email and password.'); return; }
+      if (password.length < 6) { Notify.error('Password must be at least 6 characters.'); return; }
+      try {
+        await Sync.signUp(email, password);
+        Notify.success('Account created — this device is now synced.');
+      } catch (err) {
+        Notify.error(err.message);
+      }
+    });
+
+    document.getElementById('btnSyncForgotPassword').addEventListener('click', async () => {
+      const email = document.getElementById('syncEmail').value.trim();
+      if (!email) { Notify.error('Enter your email above first, then click this again.'); return; }
+      try {
+        await Sync.resetPassword(email);
+        Notify.success('Password reset email sent — check your inbox.');
+      } catch (err) {
+        Notify.error(err.message);
+      }
+    });
+
+    document.getElementById('btnSyncSignOut').addEventListener('click', () => {
+      confirmAction('Sign Out', 'This device will stop syncing until you sign in again. Local data already on this device stays put.', async () => {
+        await Sync.signOutUser();
+        Notify.info('Signed out.');
+        renderSyncStatus();
+      });
+    });
+
+    document.getElementById('btnSyncNow').addEventListener('click', async () => {
+      Notify.info('Syncing…');
+      await Sync.pullAndMerge();
+      await Sync.pushNow();
+      renderEverything();
+      loadSettingsForm();
+      Notify.success('Sync complete.');
+    });
+  }
+
+  function renderSyncStatus() {
+    const banner = document.getElementById('syncStatusBanner');
+    const authForm = document.getElementById('syncAuthForm');
+    const signedInPanel = document.getElementById('syncSignedInPanel');
+
+    if (!Sync.isConfigured()) {
+      banner.innerHTML = 'Cloud sync isn\'t set up yet. Your data stays on this device only. See <strong>SYNC_SETUP.md</strong> in the app folder for a 5-minute setup guide (free Firebase project + email/password sign-in).';
+      authForm.hidden = true;
+      signedInPanel.hidden = true;
+      return;
+    }
+
+    if (Sync.isSignedIn()) {
+      banner.innerHTML = 'Cloud sync is active. Changes on this device sync automatically to your account and to any other device signed in with it.';
+      authForm.hidden = true;
+      signedInPanel.hidden = false;
+      document.getElementById('syncSignedInText').innerHTML = `Signed in as <strong>${escapeHtml(Sync.currentEmail())}</strong>.`;
+    } else {
+      banner.innerHTML = 'Sign in or create an account to sync your goals across devices. Your data stays local-only until you do.';
+      authForm.hidden = false;
+      signedInPanel.hidden = true;
+    }
+  }
+
+  // --- Hooks called by sync.js — kept on the public App API ---
+  function onSyncSignedIn(user, result) {
+    renderSyncStatus();
+    renderEverything();
+    loadSettingsForm();
+    if (result && !result.firstSync && (result.addedGoals || result.updatedGoals || result.addedEntries || result.updatedEntries)) {
+      Notify.success(`Synced — merged ${result.addedEntries + result.updatedEntries} entr${(result.addedEntries + result.updatedEntries) === 1 ? 'y' : 'ies'} from the cloud.`);
+    } else {
+      Notify.success('Signed in and synced.');
+    }
+  }
+  function onSyncSignedOut() {
+    renderSyncStatus();
+  }
+  function onSyncRemoteUpdate(result) {
+    renderEverything();
+    loadSettingsForm();
+    Notify.info('Updated from another device.');
+  }
+  function onSyncPushed() {
+    // Silent — avoid toast spam on every autosave. Status banner already says "active".
+  }
+  function onSyncError(err) {
+    Notify.error('Sync error — will retry automatically.');
+  }
+
+  /* ---------------------------------------------------------
      SETTINGS PAGE
   --------------------------------------------------------- */
   function loadSettingsForm() {
@@ -824,6 +937,7 @@ const App = (() => {
     document.getElementById('setPinConfirm').value = '';
 
     renderManageGoalsList();
+    renderSyncStatus();
   }
 
   function renderGoalPhotoPreview(photoDataUrl) {
@@ -1045,7 +1159,10 @@ const App = (() => {
     }
   }
 
-  return { init, openEntryForDate };
+  return {
+    init, openEntryForDate,
+    onSyncSignedIn, onSyncSignedOut, onSyncRemoteUpdate, onSyncPushed, onSyncError
+  };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);

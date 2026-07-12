@@ -36,6 +36,8 @@ offline afterward.
 │   ├── dashboard.js          Stats engine — KPIs, milestones, achievements, weekday/expense analytics, what-if pace projection
 │   ├── charts.js              Chart.js chart definitions/updates
 │   ├── calendar.js            Monthly calendar grid rendering
+│   ├── firebase-config.js    Your Firebase project keys (placeholder until you set up sync)
+│   ├── sync.js                Firebase Auth + Firestore sync (optional, no-op until configured)
 │   └── app.js                 Main controller — navigation, forms, exports
 └── assets/icons/             PWA icons
 ```
@@ -79,6 +81,19 @@ Analytics also shows your average net savings per day of the week (with the
 best/worst day called out) and an interactive **What-If Pace Calculator** —
 drag the slider or type a hypothetical daily savings amount and see the
 projected finish date update live, compared against your current actual pace.
+
+## Cloud sync (optional)
+
+By default the app is 100% local/offline — nothing leaves your device. If you
+want your data to sync between your phone and other devices, connect it to
+your own free Firebase project (email/password sign-in) by following
+**[SYNC_SETUP.md](./SYNC_SETUP.md)** — about 5–10 minutes, no coding.
+
+Once connected, Settings → **Cloud Sync** lets you create an account or sign
+in; from then on, changes on any signed-in device sync to the others in the
+background. Sync uses last-write-wins per entry/goal (see SYNC_SETUP.md for
+exactly how conflicts and deletions are handled — it's a deliberately simple
+approach, not a full conflict-free sync system).
 
 ## PIN lock
 

@@ -414,7 +414,9 @@ kbd { background: rgba(255,255,255,0.08); border: 1px solid var(--panel-border);
 .pin-fields input { flex: 1; min-width: 140px; }
 #forgotPinConfirmText { width: 100%; margin: 10px 0; }
 #pinPromptForm .modal-actions { margin-top: 6px; }
-/* ---------- Goal switcher (sidebar) ---------- */
+/* ---------- Cloud sync panels (Settings) ---------- */
+.sync-auth-form, .sync-signedin-panel { margin-bottom: 20px; }
+.sync-signedin-panel p { color: var(--text-dim); font-size: 13px; margin: 0 0 12px; }
 .goal-switcher-wrap { margin-bottom: 16px; }
 .goal-switcher-label { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
 .goal-switcher { width: 100%; font-size: 13px; padding: 9px 10px; }
