@@ -14,24 +14,22 @@ const Storage = (() => {
 
   const DEFAULT_APP_SETTINGS = {
     theme: 'dark',
-    currency: 'KSh',
-    pinEnabled: false,
-    pinHash: null
+    currency: 'KSh'
   };
 
   const DEFAULT_GOAL_FIELDS = {
     name: 'My Goal',
     photo: null,
     missionStatement: '',
-    incomeLabel1: 'Income Source 1',
-    incomeLabel2: 'Income Source 2',
     targetAmount: 600000,
     stretchGoal: 650000,
     deadline: '2027-07-01',
     internalDeadline: '2027-06-01',
     dailyTarget: 1820,
-    incomeTarget1: 300,
-    incomeTarget2: 1520
+    // Dynamic list of named income sources: [{ id, label, target }, ...]
+    // "target" is that source's own daily target (used for the per-source
+    // "remaining today" display); the sum doesn't have to equal dailyTarget.
+    incomeSources: []
   };
 
   function _read(key, fallback) {
@@ -57,7 +55,10 @@ const Storage = (() => {
   /* ---------- One-time migration from the single-goal schema ---------- */
   function migrateIfNeeded() {
     const existingGoals = _read(KEYS.goals, null);
-    if (existingGoals) return; // already on the multi-goal schema
+    if (existingGoals) {
+      migrateIncomeSourcesIfNeeded();
+      return;
+    }
 
     const oldSettings = _read('sfm_settings', null);
     const oldMeta = _read('sfm_meta', null);
@@ -72,16 +73,16 @@ const Storage = (() => {
         name: oldSettings.goalName || DEFAULT_GOAL_FIELDS.name,
         photo: oldSettings.goalPhoto || null,
         missionStatement: oldSettings.missionStatement || '',
-        incomeLabel1: oldSettings.incomeLabel1 || DEFAULT_GOAL_FIELDS.incomeLabel1,
-        incomeLabel2: oldSettings.incomeLabel2 || DEFAULT_GOAL_FIELDS.incomeLabel2,
+        incomeLabel1: oldSettings.incomeLabel1 || 'Income Source 1',
+        incomeLabel2: oldSettings.incomeLabel2 || 'Income Source 2',
         targetAmount: oldSettings.goal || DEFAULT_GOAL_FIELDS.targetAmount,
         stretchGoal: oldSettings.stretchGoal || DEFAULT_GOAL_FIELDS.stretchGoal,
         startDate: (oldMeta && oldMeta.startDate) || Utils.todayStr(),
         deadline: oldSettings.deadline || DEFAULT_GOAL_FIELDS.deadline,
         internalDeadline: oldSettings.internalDeadline || DEFAULT_GOAL_FIELDS.internalDeadline,
         dailyTarget: oldSettings.dailyTarget || DEFAULT_GOAL_FIELDS.dailyTarget,
-        incomeTarget1: oldSettings.printingTarget || DEFAULT_GOAL_FIELDS.incomeTarget1,
-        incomeTarget2: oldSettings.tradingTarget || DEFAULT_GOAL_FIELDS.incomeTarget2,
+        incomeTarget1: oldSettings.printingTarget || 0,
+        incomeTarget2: oldSettings.tradingTarget || 0,
         createdAt: (oldMeta && oldMeta.createdAt) || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
@@ -105,9 +106,7 @@ const Storage = (() => {
       _write(KEYS.achievements, { [id]: oldAchievements || [] });
       _write(KEYS.settings, {
         theme: oldSettings.theme || 'dark',
-        currency: oldSettings.currency || 'KSh',
-        pinEnabled: oldSettings.pinEnabled || false,
-        pinHash: oldSettings.pinHash || null
+        currency: oldSettings.currency || 'KSh'
       });
 
       [25, 50, 75, 100].forEach(pct => {
@@ -122,6 +121,8 @@ const Storage = (() => {
     } else {
       createDefaultGoalIfNone();
     }
+
+    migrateIncomeSourcesIfNeeded();
   }
 
   function createDefaultGoalIfNone() {
@@ -131,13 +132,14 @@ const Storage = (() => {
       id: Utils.uid(),
       startDate: Utils.todayStr(),
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      incomeSources: [{ id: Utils.uid(), label: 'Primary Income', target: 1820 }]
     });
     _write(KEYS.goals, [goal]);
     _write(KEYS.activeGoal, goal.id);
   }
 
-  /* ---------- App-wide settings (theme, currency, PIN) ---------- */
+  /* ---------- App-wide settings (theme, currency) ---------- */
   function getAppSettings() {
     return Object.assign({}, DEFAULT_APP_SETTINGS, _read(KEYS.settings, {}));
   }
@@ -176,6 +178,9 @@ const Storage = (() => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
+    if (!goal.incomeSources || !goal.incomeSources.length) {
+      goal.incomeSources = [{ id: Utils.uid(), label: 'Primary Income', target: goal.dailyTarget || 1000 }];
+    }
     goals.push(goal);
     _write(KEYS.goals, goals);
     return goal;
@@ -210,8 +215,83 @@ const Storage = (() => {
     return getActiveGoalId();
   }
 
+  /* ---------- Income sources (dynamic, per goal) ---------- */
+  function addIncomeSource(goalId, label, target) {
+    const goal = getGoal(goalId);
+    if (!goal) return null;
+    const source = { id: Utils.uid(), label: label || 'Income Source', target: Number(target) || 0 };
+    const sources = (goal.incomeSources || []).concat([source]);
+    updateGoal(goalId, { incomeSources: sources });
+    return source;
+  }
+
+  function updateIncomeSource(goalId, sourceId, patch) {
+    const goal = getGoal(goalId);
+    if (!goal) return null;
+    const sources = (goal.incomeSources || []).map(s => s.id === sourceId ? Object.assign({}, s, patch) : s);
+    updateGoal(goalId, { incomeSources: sources });
+    return sources.find(s => s.id === sourceId) || null;
+  }
+
+  function removeIncomeSource(goalId, sourceId) {
+    const goal = getGoal(goalId);
+    if (!goal) return;
+    const sources = (goal.incomeSources || []).filter(s => s.id !== sourceId);
+    updateGoal(goalId, { incomeSources: sources });
+    // Entries keep their historical amount under that source id (still counts
+    // toward net savings) — it just won't have a labeled column going forward.
+  }
+
+  /* ---------- One-time migration: fixed income1/income2 -> dynamic incomeSources ---------- */
+  function migrateIncomeSourcesIfNeeded() {
+    const goals = getGoals();
+    let goalsChanged = false;
+    const idMap = {}; // goalId -> { income1: newSourceId, income2: newSourceId }
+
+    const migratedGoals = goals.map(g => {
+      // Detect old-shape goals by the presence of their old fields, rather
+      // than by absence of incomeSources — a goal built via
+      // Object.assign({}, DEFAULT_GOAL_FIELDS, {...}) can end up with an
+      // inherited empty incomeSources: [] even while still being old-shape,
+      // which would otherwise cause this check to skip it incorrectly.
+      if (g.incomeLabel1 === undefined && g.incomeLabel2 === undefined) return g; // already new-shape
+      const source1Id = Utils.uid();
+      const source2Id = Utils.uid();
+      idMap[g.id] = { income1: source1Id, income2: source2Id };
+      goalsChanged = true;
+      return Object.assign({}, g, {
+        incomeSources: [
+          { id: source1Id, label: g.incomeLabel1 || 'Income Source 1', target: Number(g.incomeTarget1) || 0 },
+          { id: source2Id, label: g.incomeLabel2 || 'Income Source 2', target: Number(g.incomeTarget2) || 0 }
+        ],
+        incomeLabel1: undefined, incomeLabel2: undefined,
+        incomeTarget1: undefined, incomeTarget2: undefined
+      });
+    });
+
+    if (!goalsChanged) return;
+    _write(KEYS.goals, migratedGoals);
+
+    const entries = _read(KEYS.entries, []);
+    let entriesChanged = false;
+    const migratedEntries = entries.map(e => {
+      if (e.incomes) return e; // already migrated
+      const map = idMap[e.goalId];
+      if (!map) return e; // goal already had incomeSources (or entry is orphaned) — leave as-is
+      entriesChanged = true;
+      const incomes = {};
+      if (map.income1) incomes[map.income1] = Number(e.income1) || 0;
+      if (map.income2) incomes[map.income2] = Number(e.income2) || 0;
+      const clean = Object.assign({}, e, { incomes });
+      delete clean.income1;
+      delete clean.income2;
+      return clean;
+    });
+    if (entriesChanged) _write(KEYS.entries, migratedEntries);
+  }
+
   /* ---------- Entries (scoped by goalId) ---------- */
-  // Entry shape: { id, goalId, date, income1, income2, other, expenses, expenseCategory, notes, updatedAt }
+  // Entry shape: { id, goalId, date, incomes: {sourceId: amount, ...}, other, expenses, expenseCategory, notes, updatedAt }
   function getEntries(goalId) {
     const gid = goalId || getActiveGoalId();
     return _read(KEYS.entries, [])
@@ -256,8 +336,15 @@ const Storage = (() => {
   }
 
   function netOf(entry) {
-    return (Number(entry.income1) || 0) + (Number(entry.income2) || 0) +
-      (Number(entry.other) || 0) - (Number(entry.expenses) || 0);
+    const incomesTotal = entry.incomes
+      ? Object.values(entry.incomes).reduce((sum, v) => sum + (Number(v) || 0), 0)
+      : 0;
+    return incomesTotal + (Number(entry.other) || 0) - (Number(entry.expenses) || 0);
+  }
+
+  /** Amount recorded for one specific income source on a given entry (0 if none). */
+  function incomeAmount(entry, sourceId) {
+    return (entry.incomes && Number(entry.incomes[sourceId])) || 0;
   }
 
   /* ---------- Achievements (scoped by goalId) ---------- */
@@ -289,24 +376,6 @@ const Storage = (() => {
     localStorage.setItem(`sfm_milestone_${gid}_${pct}`, '1');
   }
 
-  /* ---------- PIN lock (app-wide) ---------- */
-  async function setPin(pin) {
-    const hash = await Utils.hashPin(pin);
-    saveAppSettings({ pinEnabled: true, pinHash: hash });
-  }
-  function disablePin() {
-    saveAppSettings({ pinEnabled: false, pinHash: null });
-  }
-  async function verifyPin(pin) {
-    const s = getAppSettings();
-    if (!s.pinHash) return false;
-    const hash = await Utils.hashPin(pin);
-    return hash === s.pinHash;
-  }
-  function isPinEnabled() {
-    return !!getAppSettings().pinEnabled;
-  }
-
   /* ---------- Reset scopes ---------- */
 
   /** Wipe only the given goal's progress data (entries, achievements, milestones)
@@ -322,7 +391,9 @@ const Storage = (() => {
   }
 
   /** Nuclear option: wipe absolutely everything, including all goals, all
-   *  entries, app settings, and the PIN. Used by the Forgot PIN recovery flow. */
+   *  entries, and app settings. Currently unused by the UI (there is no
+   *  "erase all data" button since PIN/Forgot-PIN was removed) but kept
+   *  available as a well-tested capability in case it's needed later. */
   function eraseEverything() {
     Object.values(KEYS).forEach(k => localStorage.removeItem(k));
     [25, 50, 75, 100]; // no-op, per-goal keys are cleared implicitly since goals are gone
@@ -352,6 +423,7 @@ const Storage = (() => {
       _write(KEYS.entries, Array.isArray(data.entries) ? data.entries : []);
       _write(KEYS.achievements, data.achievements && typeof data.achievements === 'object' ? data.achievements : {});
       if (data.settings) _write(KEYS.settings, Object.assign({}, DEFAULT_APP_SETTINGS, data.settings));
+      migrateIncomeSourcesIfNeeded();
       return;
     }
 
@@ -365,16 +437,16 @@ const Storage = (() => {
         name: s.goalName || DEFAULT_GOAL_FIELDS.name,
         photo: s.goalPhoto || null,
         missionStatement: s.missionStatement || '',
-        incomeLabel1: s.incomeLabel1 || DEFAULT_GOAL_FIELDS.incomeLabel1,
-        incomeLabel2: s.incomeLabel2 || DEFAULT_GOAL_FIELDS.incomeLabel2,
+        incomeLabel1: s.incomeLabel1 || 'Income Source 1',
+        incomeLabel2: s.incomeLabel2 || 'Income Source 2',
         targetAmount: s.goal || DEFAULT_GOAL_FIELDS.targetAmount,
         stretchGoal: s.stretchGoal || DEFAULT_GOAL_FIELDS.stretchGoal,
         startDate: meta.startDate || Utils.todayStr(),
         deadline: s.deadline || DEFAULT_GOAL_FIELDS.deadline,
         internalDeadline: s.internalDeadline || DEFAULT_GOAL_FIELDS.internalDeadline,
         dailyTarget: s.dailyTarget || DEFAULT_GOAL_FIELDS.dailyTarget,
-        incomeTarget1: s.printingTarget || DEFAULT_GOAL_FIELDS.incomeTarget1,
-        incomeTarget2: s.tradingTarget || DEFAULT_GOAL_FIELDS.incomeTarget2,
+        incomeTarget1: s.printingTarget || 0,
+        incomeTarget2: s.tradingTarget || 0,
         createdAt: meta.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
@@ -390,9 +462,9 @@ const Storage = (() => {
       _write(KEYS.entries, entries);
       _write(KEYS.achievements, { [id]: Array.isArray(data.achievements) ? data.achievements : [] });
       _write(KEYS.settings, {
-        theme: s.theme || 'dark', currency: s.currency || 'KSh',
-        pinEnabled: s.pinEnabled || false, pinHash: s.pinHash || null
+        theme: s.theme || 'dark', currency: s.currency || 'KSh'
       });
+      migrateIncomeSourcesIfNeeded();
       return;
     }
 
@@ -473,16 +545,12 @@ const Storage = (() => {
     }
 
     if (remote.settings) {
-      const localSettings = getAppSettings();
       const patch = {};
       if (remote.settings.currency) patch.currency = remote.settings.currency;
-      if (remote.settings.pinEnabled !== undefined && !localSettings.pinHash) {
-        patch.pinEnabled = remote.settings.pinEnabled;
-        patch.pinHash = remote.settings.pinHash;
-      }
       if (Object.keys(patch).length) saveAppSettings(patch);
     }
 
+    migrateIncomeSourcesIfNeeded();
     return { addedGoals, updatedGoals, addedEntries, updatedEntries };
   }
 
@@ -492,10 +560,10 @@ const Storage = (() => {
     getAppSettings, saveAppSettings,
     getGoals, getGoal, getActiveGoalId, setActiveGoalId, getActiveGoal,
     createGoal, updateGoal, deleteGoal,
-    getEntries, getEntryByDate, upsertEntry, deleteEntryByDate, deleteLastEntry, netOf,
+    addIncomeSource, updateIncomeSource, removeIncomeSource,
+    getEntries, getEntryByDate, upsertEntry, deleteEntryByDate, deleteLastEntry, netOf, incomeAmount,
     getUnlockedAchievements, unlockAchievement,
     hasMilestoneFlag, setMilestoneFlag,
-    setPin, disablePin, verifyPin, isPinEnabled,
     resetGoalData, eraseEverything,
     exportBackup, restoreBackup, mergeRemoteBackup
   };

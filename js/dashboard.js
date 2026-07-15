@@ -94,6 +94,25 @@ const Dash = (() => {
     const estimatedPurchaseDateAtTarget = dailyTarget > 0 ? addDays(today, daysNeededAtTarget) : null;
 
     const todaysEntry = Storage.getEntryByDate(today, goal ? goal.id : null);
+    const todaysNet = todaysEntry ? Storage.netOf(todaysEntry) : 0;
+    const todaysRemaining = Math.max(dailyTarget - todaysNet, 0);
+    const todaysTargetMet = dailyTarget > 0 && todaysNet >= dailyTarget;
+
+    // Per-source "today" breakdown, used to hide a source's target once met
+    // and show the remaining balance otherwise.
+    const sources = (goal && goal.incomeSources) || [];
+    const todaysSourceBreakdown = sources.map(src => {
+      const amountToday = todaysEntry ? Storage.incomeAmount(todaysEntry, src.id) : 0;
+      const target = Number(src.target) || 0;
+      return {
+        id: src.id,
+        label: src.label,
+        target,
+        amountToday,
+        remainingToday: Math.max(target - amountToday, 0),
+        met: target > 0 && amountToday >= target
+      };
+    });
 
     return {
       goal, entries: withNet, today,
@@ -102,6 +121,7 @@ const Dash = (() => {
       totalEntries, currentDailyAverage, weeklyAverage, monthlyAverage,
       currentStreak, longestStreak, daysAheadBehind,
       estimatedPurchaseDate, estimatedPurchaseDateAtTarget, todaysEntry,
+      todaysNet, todaysRemaining, todaysTargetMet, todaysSourceBreakdown,
       weekMap, monthMap, weekdayMap, categoryMap
     };
   }
@@ -186,17 +206,28 @@ const Dash = (() => {
     const entries = stats.entries;
     if (!entries.length) return null;
 
-    const highestIncome1 = entries.reduce((m, e) => (e.income1 || 0) > (m.income1 || 0) ? e : m, entries[0]);
-    const highestIncome2 = entries.reduce((m, e) => (e.income2 || 0) > (m.income2 || 0) ? e : m, entries[0]);
+    const sources = (stats.goal && stats.goal.incomeSources) || [];
+    const incomeSourceStats = sources.map(src => {
+      const highestEntry = entries.reduce((m, e) => {
+        const amt = Storage.incomeAmount(e, src.id);
+        const mAmt = Storage.incomeAmount(m, src.id);
+        return amt > mAmt ? e : m;
+      }, entries[0]);
+      const total = entries.reduce((s, e) => s + Storage.incomeAmount(e, src.id), 0);
+      return {
+        id: src.id,
+        label: src.label,
+        highestEntry,
+        highestAmount: Storage.incomeAmount(highestEntry, src.id),
+        average: total / entries.length
+      };
+    });
 
     const weeks = Object.entries(stats.weekMap);
     const months = Object.entries(stats.monthMap);
     const bestWeek = weeks.length ? weeks.reduce((m, w) => w[1] > m[1] ? w : m) : null;
     const worstWeek = weeks.length ? weeks.reduce((m, w) => w[1] < m[1] ? w : m) : null;
     const bestMonth = months.length ? months.reduce((m, mo) => mo[1] > m[1] ? mo : m) : null;
-
-    const avgIncome1 = entries.reduce((s, e) => s + (Number(e.income1) || 0), 0) / entries.length;
-    const avgIncome2 = entries.reduce((s, e) => s + (Number(e.income2) || 0), 0) / entries.length;
 
     // Weekday insights
     const weekdayAverages = Object.entries(stats.weekdayMap).map(([wd, v]) => ({
@@ -215,8 +246,7 @@ const Dash = (() => {
     const totalExpenses = categoryTotals.reduce((s, c) => s + c.total, 0);
 
     return {
-      highestIncome1, highestIncome2, bestWeek, worstWeek, bestMonth,
-      avgIncome1, avgIncome2,
+      incomeSourceStats, bestWeek, worstWeek, bestMonth,
       forecastDate: stats.estimatedPurchaseDate,
       weekdayAverages, bestWeekday, worstWeekday,
       categoryTotals, totalExpenses

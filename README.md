@@ -57,17 +57,48 @@ a new one from there (name, target amount, and deadline are the only
 required fields; everything else can be filled in later under Settings).
 Each goal has its own name, photo, income labels, targets, dates, entries,
 streaks, and achievements — switching goals switches the entire dashboard,
-history, calendar, and analytics to that goal's data. `theme`, `currency`,
-and the PIN are shared across all goals.
+history, calendar, and analytics to that goal's data. `theme` and `currency`
+are shared across all goals.
 
 Settings → **Manage Goals** lists every goal with options to switch or
 delete it (deleting removes that goal's entries and achievements along with
-it — PIN + confirmation gated, and blocked if it's your only goal).
+it — confirmation gated, and blocked if it's your only goal).
 
 **Reset This Goal** (on the Daily Entry page) only wipes the *active* goal's
 entries/streaks/achievements — its name, targets, and photo stay put, and
 other goals are untouched. Backups (History → Download Backup) always
 include *every* goal, not just the active one.
+
+## Income sources
+
+Income isn't limited to two fixed fields anymore. Settings → **Income
+Sources** lets you add as many named sources as you want (each with its own
+daily target), rename or retarget any of them, or remove one entirely.
+Removing a source doesn't touch historical entries — past amounts still
+count toward your totals, they just won't have a labeled column going
+forward. Daily Entry, History, Analytics charts, and CSV/Excel/PDF exports
+all pick up your current source list and labels automatically — export
+column headers always match whatever you've named your sources.
+
+## Deadline by days-to-save
+
+In Settings, instead of only picking a deadline date, you can type a number
+of days into **"...or set Deadline by days to save"** — it computes the
+Deadline date as Start Date + that many days. The two fields stay in sync in
+both directions: editing the date recalculates the day count, and editing
+the day count recalculates the date.
+
+## Today's Targets (resets at local midnight)
+
+The Dashboard shows a **Today's Targets** section: your overall daily target
+and each income source's target, but only the ones you haven't hit yet —
+once a target is met for the day it disappears from the section rather than
+sitting there as a redundant number. If it's only partially met, it shows
+the remaining balance instead of the full target amount. "Today" is your
+device's local calendar day (midnight to midnight); if you leave a browser
+tab open across midnight, the app detects the date change automatically
+(checked every minute, plus whenever the tab regains focus) and refreshes
+without needing a manual reload.
 
 ## Expense categories
 
@@ -95,24 +126,26 @@ background. Sync uses last-write-wins per entry/goal (see SYNC_SETUP.md for
 exactly how conflicts and deletions are handled — it's a deliberately simple
 approach, not a full conflict-free sync system).
 
-## PIN lock
+## Account-gated access
 
-Go to **Settings → Security** to set a 4–8 digit PIN. Once set:
+If Cloud Sync is configured (see above), the app requires sign-in before
+showing anything — a full-screen gate blocks all content until you sign in
+or create an account. This replaced an earlier local PIN-lock feature: once
+your data is behind a real account login, a separate device PIN was
+redundant, so it was removed in favor of just the one gate.
 
-- Opening the app shows a lock screen — you must enter the PIN to see anything.
-- **Reset Everything** and **Restore Backup** also require the PIN, since both
-  overwrite or erase all your data.
-- The PIN itself is never stored in plain text — it's hashed (SHA-256) before
-  being saved to `localStorage`.
+A few things worth knowing about how the gate behaves:
 
-**Important limitation:** this is a client-only app with no server, so there's
-no way to recover a forgotten PIN through email/support. The only recovery
-path is the "Forgot your PIN?" link on the lock screen, which erases *all*
-local data (entries, settings, achievements, and the PIN) so you can start
-over — restore from a backup file afterward if you have one. Because of this,
-treat the PIN as a privacy screen against casual snooping (e.g. someone
-picking up your phone), not as strong security — anyone with direct access to
-this browser's developer tools/storage could still bypass it.
+- If Cloud Sync **isn't** configured, there's no gate at all — the app works
+  exactly as it always has, fully offline, no account needed.
+- Firebase persists your signed-in session locally, so you won't be asked to
+  sign in again on the same device/browser after the first time — including
+  offline, since the session itself doesn't require a live connection to
+  confirm (only signing in or up for the first time does).
+- **Reset This Goal**, **Delete Goal**, and **Restore Backup** are still
+  gated behind their own confirmation dialogs to prevent accidental clicks,
+  but no longer require re-entering a PIN — being signed into the app at all
+  is now the access control.
 
 ## Making it your own
 
@@ -124,8 +157,8 @@ This app isn't locked to a Subaru Forester — go to **Settings** and you can se
   compressed to a JPEG data URL before being stored, so large phone photos
   won't blow past `localStorage`'s ~5–10MB browser quota
 - **Mission Statement** — your own "why," shown on the About page
-- **Income Source labels** — rename "Printing Income" / "Trading Profit" to
-  whatever your actual income sources are (side hustle, salary, freelance, etc.)
+- **Income sources** — add, rename, retarget, or remove as many named income
+  sources as you want (see "Income sources" above)
 - **Goal amount, stretch goal, deadlines, and daily targets** — all editable
 
 Everything else (KPIs, milestones, streaks, charts, calendar, achievements,
@@ -133,44 +166,62 @@ projections) recalculates automatically off whatever numbers and labels you
 set — the underlying engine was already goal-agnostic, it just displayed
 Forester-specific text by default.
 
-> **One goal at a time:** the app currently tracks a single active goal and
-> its full history. If you finish this goal and want to start a new one,
-> use *Reset Everything* in Daily Entry (or download a backup first if you
-> want to keep the old goal's history), then set the new goal name/photo/
-> targets in Settings. If you'd like to track multiple goals *simultaneously*
-> with separate histories, that's a bigger structural change — let me know
-> and I can add goal-switching.
+Multiple goals are fully supported — see "Multiple goals" above for how to
+create, switch between, and manage them.
 
 ## Data model
 
-Every entry is stored in `localStorage` under `sfm_entries` as:
+Every entry is stored in `localStorage` under `sfm_entries`, tagged with
+which goal it belongs to:
 
 ```json
-{ "date": "2026-07-07", "printing": 300, "trading": 1520, "other": 0, "expenses": 0, "notes": "" }
+{
+  "date": "2026-07-07",
+  "goalId": "id_abc123",
+  "incomes": { "id_source1": 300, "id_source2": 1520 },
+  "other": 0,
+  "expenses": 0,
+  "expenseCategory": "",
+  "notes": ""
+}
 ```
 
-Net savings for a day = `printing + trading + other − expenses`. Saving a date
-that already has a record **updates** it in place — no duplicate dates are
-ever created.
+Net savings for a day = sum of all values in `incomes` + `other` − `expenses`.
+Saving a date that already has a record for that goal **updates** it in
+place — no duplicate dates are ever created.
 
-Settings (`sfm_settings`), unlocked achievements (`sfm_achievements`), and
-mission metadata such as the start date (`sfm_meta`) are stored separately.
-"Reset Everything" clears all four keys and reinitializes a fresh mission
-start date.
+Goals (`sfm_goals`) hold each goal's own name, photo, income source list
+(`incomeSources: [{ id, label, target }]`), targets, and dates. App-wide
+settings — `theme`, `currency` — live separately in `sfm_settings`, since
+they apply across every goal. "Reset This Goal" (Daily Entry) clears one
+goal's entries/achievements/streaks while keeping its settings; deleting a
+goal entirely (Settings → Manage Goals) removes its data along with it.
 
 ## Features implemented
 
 - Luxury black/gold/carbon-fiber dashboard theme with glassmorphism cards
+- Multiple goals with independent names, photos, income sources, and history
+- Dynamic, user-defined income sources (add/rename/retarget/remove any time)
 - Animated progress bar + circular completion gauge
-- Full KPI grid (current savings, remaining, targets, streaks, pace, etc.)
+- Today's Targets section that hides each target once met and shows the
+  remaining balance otherwise — auto-refreshes at local midnight
+- Deadline by date, or by typing a number of days to save
+- Full KPI grid (current savings, remaining, streaks, pace, both actual-pace
+  and target-pace purchase-date projections, etc.)
 - 25/50/75/100% milestones with unlock badges + confetti celebration
 - Daily entry form with live net-savings preview, update-in-place logic,
-  delete-last-entry, and full reset (with confirmation)
-- Edit history table with search, inline edit/delete, and running totals
-- CSV / Excel / PDF export, plus one-click JSON backup and restore
-- Analytics page (highest days, best/worst week & month, averages, forecast)
+  delete-last-entry, and a per-goal reset (with confirmation)
+- Edit history table with search, inline edit/delete, and running totals —
+  columns always match your current income sources
+- CSV / Excel / PDF export with matching dynamic column headers, plus
+  one-click JSON backup and restore covering every goal
+- Analytics: per-source highest-day/averages, best/worst week & month,
+  weekday patterns, expense category breakdown, and an interactive What-If
+  pace calculator
 - Color-coded monthly calendar (green/yellow/red/gray) — click a day to edit it
-- Achievements grid (first 10k, first month, streak milestones, goal reached)
+- Achievements grid, tracked per goal
+- Optional cloud sync (Firebase email/password) with a mandatory sign-in
+  gate when configured, last-write-wins merge across devices
 - Toast notifications, confirmation modals, and a milestone celebration overlay
 - Dark/light theme toggle, daily motivational quote, live countdown timers
 - Keyboard shortcuts (`1`–`8` to jump pages, `N` for new entry, `Ctrl/Cmd+S`

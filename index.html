@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Subaru Forester Mission — Savings Dashboard</title>
+<title>Goal Savings Tracker — Personal Savings Dashboard</title>
 <meta name="theme-color" content="#0a0a0a">
-<meta name="description" content="A premium savings dashboard tracking the mission to buy a Subaru Forester by July 2027.">
+<meta name="description" content="A premium savings dashboard for tracking progress toward any financial goal, on any deadline.">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="assets/icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -155,6 +155,10 @@
         </div>
       </div>
 
+      <!-- Today's Targets — dynamic, hides each target once met -->
+      <div class="section-head"><h2>Today's Targets</h2></div>
+      <div class="kpi-grid" id="todaysTargetsGrid"></div>
+
       <!-- KPI grid -->
       <div class="kpi-grid">
         <div class="glass-card kpi-card kpi-gold">
@@ -164,18 +168,6 @@
         <div class="glass-card kpi-card">
           <span class="kpi-label">Remaining Amount</span>
           <span class="kpi-value" id="kpiRemaining">KSh 600,000</span>
-        </div>
-        <div class="glass-card kpi-card">
-          <span class="kpi-label">Today's Target</span>
-          <span class="kpi-value" id="kpiTodayTarget">KSh 1,820</span>
-        </div>
-        <div class="glass-card kpi-card">
-          <span class="kpi-label" id="kpiPrintTargetLabel">Printing Target</span>
-          <span class="kpi-value" id="kpiPrintTarget">KSh 300</span>
-        </div>
-        <div class="glass-card kpi-card">
-          <span class="kpi-label" id="kpiTradeTargetLabel">Trading Target</span>
-          <span class="kpi-value" id="kpiTradeTarget">KSh 1,520</span>
         </div>
         <div class="glass-card kpi-card">
           <span class="kpi-label">Days Remaining</span>
@@ -236,7 +228,7 @@
 
     <!-- ===================== DAILY ENTRY PAGE ===================== -->
     <section class="page" id="page-entry">
-      <div class="section-head"><h2>Daily Entry</h2><p class="section-sub">Log today's printing income, trading profit, and expenses.</p></div>
+      <div class="section-head"><h2>Daily Entry</h2><p class="section-sub">Log today's income and expenses for this goal.</p></div>
 
       <form class="glass-card entry-form" id="entryForm">
         <input type="hidden" id="inputDate">
@@ -244,15 +236,10 @@
           <label>Date</label>
           <input type="date" id="inputDatePicker" required>
         </div>
+        <div class="form-grid" id="entryIncomeFields">
+          <!-- Populated dynamically: one number input per active income source -->
+        </div>
         <div class="form-grid">
-          <div class="form-row">
-            <label id="labelPrinting">Printing Income</label>
-            <input type="number" step="0.01" min="0" id="inputPrinting" placeholder="0.00">
-          </div>
-          <div class="form-row">
-            <label id="labelTrading">Trading Profit</label>
-            <input type="number" step="0.01" min="0" id="inputTrading" placeholder="0.00">
-          </div>
           <div class="form-row">
             <label>Other Income</label>
             <input type="number" step="0.01" min="0" id="inputOther" placeholder="0.00">
@@ -303,8 +290,8 @@
       <div class="glass-card table-card">
         <table class="history-table">
           <thead>
-            <tr>
-              <th>Date</th><th>Printing</th><th>Trading</th><th>Other</th><th>Expenses</th><th>Net Savings</th><th>Running Total</th><th>Actions</th>
+            <tr id="historyTableHeadRow">
+              <th>Date</th><th>Other</th><th>Expenses</th><th>Net Savings</th><th>Running Total</th><th>Actions</th>
             </tr>
           </thead>
           <tbody id="historyTableBody"></tbody>
@@ -367,7 +354,7 @@
         </div>
       </div>
 
-      <div class="section-head"><h2>Printing vs Trading</h2></div>
+      <div class="section-head"><h2 id="incomeCompareHeading">Income Comparison</h2></div>
       <div class="glass-card chart-card"><canvas id="chartPrintTrade"></canvas></div>
 
       <div class="section-head"><h2>Expenses</h2></div>
@@ -379,9 +366,9 @@
       <div class="section-head">
         <h2>Calendar</h2>
         <div class="cal-nav">
-          <button class="icon-btn" id="calPrev">‹</button>
+          <button class="icon-btn" id="calPrev" aria-label="Previous month">‹</button>
           <span id="calendarLabel">—</span>
-          <button class="icon-btn" id="calNext">›</button>
+          <button class="icon-btn" id="calNext" aria-label="Next month">›</button>
         </div>
       </div>
       <div class="glass-card cal-legend">
@@ -397,7 +384,7 @@
 
     <!-- ===================== ACHIEVEMENTS PAGE ===================== -->
     <section class="page" id="page-achievements">
-      <div class="section-head"><h2>Achievements</h2><p class="section-sub">Unlocked badges on the road to the Forester.</p></div>
+      <div class="section-head"><h2>Achievements</h2><p class="section-sub">Unlocked badges on the road to your goal.</p></div>
       <div class="achievements-grid" id="achievementsGrid"></div>
     </section>
 
@@ -444,6 +431,10 @@
           <div class="form-row"><label>Stretch Goal (KSh)</label><input type="number" id="setStretchGoal"></div>
           <div class="form-row"><label>Start Date</label><input type="date" id="setStartDate"></div>
           <div class="form-row"><label>Deadline</label><input type="date" id="setDeadline"></div>
+          <div class="form-row">
+            <label>...or set Deadline by days to save</label>
+            <input type="number" id="setDaysToSave" min="1" placeholder="e.g. 365">
+          </div>
           <div class="form-row"><label>Internal Goal Date</label><input type="date" id="setInternalDeadline"></div>
         </div>
 
@@ -470,34 +461,16 @@
           <textarea id="setMission" rows="3"></textarea>
         </div>
 
-        <div class="section-head"><h2 style="font-size:15px;">Income Sources &amp; Targets</h2></div>
+        <div class="section-head"><h2 style="font-size:15px;">Overall Daily Target</h2></div>
         <div class="form-grid">
           <div class="form-row"><label>Daily Target (KSh)</label><input type="number" id="setDailyTarget"></div>
-          <div class="form-row"><label>Income Source 1 — Label</label><input type="text" id="setLabel1" placeholder="e.g. Printing Income"></div>
-          <div class="form-row"><label>Income Source 1 — Target (KSh)</label><input type="number" id="setPrintTarget"></div>
-          <div class="form-row"><label>Income Source 2 — Label</label><input type="text" id="setLabel2" placeholder="e.g. Trading Profit"></div>
-          <div class="form-row"><label>Income Source 2 — Target (KSh)</label><input type="number" id="setTradeTarget"></div>
         </div>
 
-        <div class="section-head"><h2 style="font-size:15px;">Security</h2></div>
-        <div class="glass-card-inset" style="margin-bottom:14px;">
-          PIN protects opening the app and locks critical actions (Reset Everything,
-          Restore Backup). This is a local privacy screen, not encryption — anyone
-          with direct access to this device's browser storage could still bypass it.
+        <div class="section-head">
+          <h2 style="font-size:15px;">Income Sources</h2>
+          <button type="button" class="btn btn-outline small-btn" id="btnAddIncomeSource">➕ Add Income Source</button>
         </div>
-        <div class="form-grid">
-          <div class="form-row">
-            <label id="pinStatusLabel">PIN Lock — Disabled</label>
-            <div class="pin-fields">
-              <input type="password" inputmode="numeric" pattern="[0-9]*" id="setPinNew" maxlength="8" placeholder="New PIN (4–8 digits)" autocomplete="off">
-              <input type="password" inputmode="numeric" pattern="[0-9]*" id="setPinConfirm" maxlength="8" placeholder="Confirm PIN" autocomplete="off">
-            </div>
-          </div>
-        </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-outline" id="btnSavePin">Set / Update PIN</button>
-          <button type="button" class="btn btn-outline btn-danger" id="btnRemovePin" hidden>Remove PIN</button>
-        </div>
+        <div class="income-sources-editor" id="incomeSourcesEditor"></div>
 
         <div class="section-head"><h2 style="font-size:15px;">Display</h2></div>
         <div class="form-grid">
@@ -521,7 +494,7 @@
     <section class="page" id="page-about">
       <div class="section-head"><h2>About This Mission</h2></div>
       <div class="glass-card about-card">
-        <p class="about-mission" id="aboutMissionText">"My mission is to own a Subaru Forester before July 1st 2027 through disciplined saving, consistent trading, and business growth."</p>
+        <p class="about-mission" id="aboutMissionText">"Set your mission statement in Settings — it'll appear here."</p>
         <hr class="gold-divider">
         <h3>Keyboard Shortcuts</h3>
         <ul class="shortcut-list">
@@ -534,6 +507,35 @@
     </section>
 
   </main>
+</div>
+
+<!-- ============== AUTH GATE (shown only when Cloud Sync is configured) ============== -->
+<div class="lock-overlay" id="authGateScreen">
+  <div class="lock-box glass-card gate-box">
+    <div class="brand-emblem lock-emblem">
+      <svg viewBox="0 0 48 48" class="emblem-svg"><circle cx="24" cy="24" r="22" fill="none" stroke="var(--gold)" stroke-width="1.5"/><path d="M12 30c1-6 4-12 12-12s11 6 12 12" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="31" r="3" fill="var(--gold)"/><circle cx="32" cy="31" r="3" fill="var(--gold)"/></svg>
+    </div>
+
+    <div id="gateCheckingState">
+      <h2>Checking your session…</h2>
+      <p class="lock-sub">One moment.</p>
+    </div>
+
+    <div id="gateAuthForm" hidden>
+      <h2>Sign in to continue</h2>
+      <p class="lock-sub">This app is protected by your account — sign in or create one to access your goals.</p>
+      <div class="gate-fields">
+        <input type="email" id="gateEmail" placeholder="Email" autocomplete="username">
+        <input type="password" id="gatePassword" placeholder="Password" autocomplete="current-password">
+      </div>
+      <p class="lock-error" id="gateError"></p>
+      <div class="gate-actions">
+        <button type="button" class="btn btn-gold" id="btnGateSignIn">Sign In</button>
+        <button type="button" class="btn btn-outline" id="btnGateSignUp">Create Account</button>
+      </div>
+      <button type="button" class="lock-forgot" id="btnGateForgotPassword">Forgot password?</button>
+    </div>
+  </div>
 </div>
 
 <!-- ============== CREATE GOAL MODAL ============== -->
@@ -551,56 +553,6 @@
         <button type="submit" class="btn btn-gold">Create Goal</button>
       </div>
     </form>
-  </div>
-</div>
-
-<!-- ============== PIN LOCK SCREEN ============== -->
-<div class="lock-overlay" id="lockScreen">
-  <div class="lock-box glass-card">
-    <div class="brand-emblem lock-emblem">
-      <svg viewBox="0 0 48 48" class="emblem-svg"><circle cx="24" cy="24" r="22" fill="none" stroke="var(--gold)" stroke-width="1.5"/><path d="M12 30c1-6 4-12 12-12s11 6 12 12" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="31" r="3" fill="var(--gold)"/><circle cx="32" cy="31" r="3" fill="var(--gold)"/></svg>
-    </div>
-    <h2 id="lockTitle">Enter your PIN</h2>
-    <p class="lock-sub" id="lockGoalName">Your goal is locked.</p>
-    <form id="lockForm">
-      <input type="password" inputmode="numeric" pattern="[0-9]*" id="lockPinInput" maxlength="8" placeholder="••••" autocomplete="off">
-      <p class="lock-error" id="lockError"></p>
-      <button type="submit" class="btn btn-gold" id="btnUnlock">Unlock</button>
-    </form>
-    <button class="lock-forgot" id="btnForgotPin">Forgot your PIN?</button>
-  </div>
-</div>
-
-<!-- ============== PIN PROMPT (for critical actions) ============== -->
-<div class="modal-overlay" id="pinPromptOverlay">
-  <div class="modal-box glass-card">
-    <h3 id="pinPromptTitle">Confirm PIN</h3>
-    <p id="pinPromptMessage">This action is protected. Enter your PIN to continue.</p>
-    <form id="pinPromptForm">
-      <input type="password" inputmode="numeric" pattern="[0-9]*" id="pinPromptInput" maxlength="8" placeholder="••••" autocomplete="off">
-      <p class="lock-error" id="pinPromptError"></p>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-ghost" id="pinPromptCancel">Cancel</button>
-        <button type="submit" class="btn btn-danger">Confirm</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- ============== FORGOT PIN / RECOVERY MODAL ============== -->
-<div class="modal-overlay" id="forgotPinOverlay">
-  <div class="modal-box glass-card">
-    <h3>Forgot your PIN?</h3>
-    <p>This app has no server, so there's no way to recover a lost PIN — the
-      only option is to erase all local data (entries, settings, achievements,
-      and your PIN) and start over. Consider restoring from a backup file
-      afterward if you have one.</p>
-    <p>Type <strong>ERASE</strong> below to confirm.</p>
-    <input type="text" id="forgotPinConfirmText" placeholder="Type ERASE" autocomplete="off">
-    <div class="modal-actions">
-      <button type="button" class="btn btn-ghost" id="forgotPinCancel">Cancel</button>
-      <button type="button" class="btn btn-danger" id="forgotPinConfirm">Erase Everything</button>
-    </div>
   </div>
 </div>
 

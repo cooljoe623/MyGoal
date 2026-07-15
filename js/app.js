@@ -6,7 +6,6 @@ const App = (() => {
 
   let cachedStats = null;
   let pendingGoalPhoto = undefined; // undefined = no change, null = remove, string = new photo
-  let goalActionResolver = null;    // for the create/delete-goal quick modals
 
   /* ---------------------------------------------------------
      INIT
@@ -14,6 +13,12 @@ const App = (() => {
   function init() {
     Storage.migrateIfNeeded();
     applyTheme(Storage.getAppSettings().theme);
+
+    // If cloud sync is configured, block the entire app behind a sign-in
+    // gate immediately — before any content renders — so nothing is visible
+    // until we know who's signed in (or that no one is).
+    if (Sync.isConfigured()) showAuthGate('checking');
+
     bindNav();
     bindSidebarToggle();
     bindThemeToggle();
@@ -25,10 +30,10 @@ const App = (() => {
     bindModal();
     bindCelebrateOverlay();
     bindKeyboardShortcuts();
-    bindPinLock();
     bindWhatIfCalculator();
     bindCreateGoalModal();
     bindSyncUI();
+    bindAuthGate();
     CalendarView.init();
 
     document.getElementById('quoteText').textContent = Utils.quoteOfTheDay();
@@ -38,10 +43,10 @@ const App = (() => {
     Sync.init();
     renderEverything();
     registerServiceWorker();
-    checkLockOnStartup();
+    bindMidnightRefresh();
   }
 
-  function renderEverything() {
+  function renderEverything(skipSyncPush) {
     const stats = Dash.computeStats();
     cachedStats = stats;
     renderGoalSwitcher();
@@ -49,6 +54,7 @@ const App = (() => {
     renderProgress(stats);
     renderGauge(stats);
     renderKPIs(stats);
+    renderTodaysTargets(stats);
     renderMilestones(stats);
     renderAnalyticsStats(stats);
     renderWeekdayAndCategoryText(stats);
@@ -58,7 +64,7 @@ const App = (() => {
     Charts.renderAll(stats);
     CalendarView.render();
     prefillEntryFormFromDate(document.getElementById('inputDatePicker').value);
-    Sync.scheduleSync();
+    if (!skipSyncPush) Sync.scheduleSync();
   }
 
   /* ---------------------------------------------------------
@@ -218,11 +224,6 @@ const App = (() => {
       fallbackEl.style.display = '';
     }
 
-    document.getElementById('labelPrinting').textContent = g.incomeLabel1 || 'Income Source 1';
-    document.getElementById('labelTrading').textContent = g.incomeLabel2 || 'Income Source 2';
-    document.getElementById('kpiPrintTargetLabel').textContent = `${g.incomeLabel1 || 'Income Source 1'} Target`;
-    document.getElementById('kpiTradeTargetLabel').textContent = `${g.incomeLabel2 || 'Income Source 2'} Target`;
-
     document.getElementById('aboutMissionText').textContent = `"${g.missionStatement || ''}"`;
   }
 
@@ -254,12 +255,8 @@ const App = (() => {
      KPI GRID
   --------------------------------------------------------- */
   function renderKPIs(stats) {
-    const g = stats.goal || {};
     document.getElementById('kpiCurrentSavings').textContent = Utils.formatCurrency(stats.currentSavings);
     document.getElementById('kpiRemaining').textContent = Utils.formatCurrency(stats.remaining);
-    document.getElementById('kpiTodayTarget').textContent = Utils.formatCurrency(g.dailyTarget);
-    document.getElementById('kpiPrintTarget').textContent = Utils.formatCurrency(g.incomeTarget1);
-    document.getElementById('kpiTradeTarget').textContent = Utils.formatCurrency(g.incomeTarget2);
     document.getElementById('kpiDaysRemaining').textContent = Math.max(stats.daysRemaining, 0);
     document.getElementById('kpiEstPurchase').textContent = stats.remaining > 0 ? Utils.prettyDate(stats.estimatedPurchaseDate) : 'Goal reached!';
     document.getElementById('kpiEstPurchaseAtTarget').textContent = stats.remaining <= 0 ? 'Goal reached!' :
@@ -274,6 +271,49 @@ const App = (() => {
     abEl.textContent = ab === 0 ? 'On pace' : (ab > 0 ? `${ab} days ahead` : `${Math.abs(ab)} days behind`);
     abEl.style.color = ab >= 0 ? 'var(--green)' : 'var(--red)';
     document.getElementById('kpiPercentage').textContent = stats.percentage.toFixed(1) + '%';
+  }
+
+  /* ---------------------------------------------------------
+     TODAY'S TARGETS — resets automatically at local midnight
+     (see the midnight-refresh timer), hides each target once
+     it's been met for today, and shows the remaining balance
+     when it's only partially met.
+  --------------------------------------------------------- */
+  function renderTodaysTargets(stats) {
+    const grid = document.getElementById('todaysTargetsGrid');
+    const cards = [];
+
+    if ((stats.goal && stats.goal.dailyTarget) > 0) {
+      if (!stats.todaysTargetMet) {
+        cards.push(`
+          <div class="glass-card kpi-card kpi-gold">
+            <span class="kpi-label">Today's Overall Target — Remaining</span>
+            <span class="kpi-value">${Utils.formatCurrency(stats.todaysRemaining)}</span>
+          </div>
+        `);
+      }
+    }
+
+    stats.todaysSourceBreakdown.forEach(src => {
+      if (src.target <= 0 || src.met) return; // fully met or no target set — nothing to show
+      cards.push(`
+        <div class="glass-card kpi-card">
+          <span class="kpi-label">${escapeHtml(src.label)} — Remaining Today</span>
+          <span class="kpi-value">${Utils.formatCurrency(src.remainingToday)}</span>
+        </div>
+      `);
+    });
+
+    if (!cards.length) {
+      grid.innerHTML = `
+        <div class="glass-card kpi-card kpi-gold">
+          <span class="kpi-label">All Today's Targets</span>
+          <span class="kpi-value">Met ✓</span>
+        </div>
+      `;
+    } else {
+      grid.innerHTML = cards.join('');
+    }
   }
 
   /* ---------------------------------------------------------
@@ -297,7 +337,6 @@ const App = (() => {
   --------------------------------------------------------- */
   function renderAnalyticsStats(stats) {
     const a = Dash.analytics(stats);
-    const g = stats.goal || {};
     const grid = document.getElementById('analyticsStatsGrid');
     if (!a) {
       grid.innerHTML = `<div class="glass-card kpi-card"><span class="kpi-label">No data yet</span><span class="kpi-value small">Log entries to see analytics</span></div>`;
@@ -305,22 +344,21 @@ const App = (() => {
       document.getElementById('categoryTotalsList').innerHTML = '';
       return;
     }
-    const label1 = g.incomeLabel1 || 'Income 1';
-    const label2 = g.incomeLabel2 || 'Income 2';
-    const cards = [
-      [`Highest ${label1} Day`, `${Utils.formatCurrency(a.highestIncome1.income1)} — ${Utils.shortDate(a.highestIncome1.date)}`],
-      [`Highest ${label2} Day`, `${Utils.formatCurrency(a.highestIncome2.income2)} — ${Utils.shortDate(a.highestIncome2.date)}`],
+    const cards = [];
+    a.incomeSourceStats.forEach(src => {
+      cards.push([`Highest ${src.label} Day`, `${Utils.formatCurrency(src.highestAmount)} — ${Utils.shortDate(src.highestEntry.date)}`]);
+      cards.push([`Average ${src.label}`, Utils.formatCurrency(src.average)]);
+    });
+    cards.push(
       ['Best Week', a.bestWeek ? Utils.formatCurrency(a.bestWeek[1]) : '—'],
       ['Worst Week', a.worstWeek ? Utils.formatCurrency(a.worstWeek[1]) : '—'],
       ['Best Month', a.bestMonth ? `${Utils.formatCurrency(a.bestMonth[1])} — ${a.bestMonth[0]}` : '—'],
-      [`Average ${label1}`, Utils.formatCurrency(a.avgIncome1)],
-      [`Average ${label2}`, Utils.formatCurrency(a.avgIncome2)],
       ['Average Daily Savings', Utils.formatCurrency(stats.currentDailyAverage)],
-      ['Projected Finish Date', stats.remaining > 0 ? Utils.prettyDate(a.forecastDate) : 'Achieved'],
-    ];
+      ['Projected Finish Date', stats.remaining > 0 ? Utils.prettyDate(a.forecastDate) : 'Achieved']
+    );
     grid.innerHTML = cards.map(([label, val]) => `
       <div class="glass-card kpi-card">
-        <span class="kpi-label">${label}</span>
+        <span class="kpi-label">${escapeHtml(label)}</span>
         <span class="kpi-value small">${val}</span>
       </div>
     `).join('');
@@ -422,12 +460,37 @@ const App = (() => {
     document.getElementById('inputDatePicker').max = Utils.todayStr();
   }
 
+  /** Rebuilds the income-source input rows to match the active goal's
+   *  current list of sources — called whenever the entry form needs to
+   *  reflect the goal in view (date change, goal switch, settings save). */
+  function renderEntryIncomeFields(goal) {
+    const container = document.getElementById('entryIncomeFields');
+    const sources = (goal && goal.incomeSources) || [];
+    if (!sources.length) {
+      container.innerHTML = '<p class="section-sub">No income sources yet — add one in Settings.</p>';
+      return;
+    }
+    container.innerHTML = sources.map(src => `
+      <div class="form-row">
+        <label>${escapeHtml(src.label)}</label>
+        <input type="number" step="0.01" min="0" class="entry-income-input" data-source-id="${src.id}" placeholder="0.00">
+      </div>
+    `).join('');
+    container.querySelectorAll('.entry-income-input').forEach(input => {
+      input.addEventListener('input', updateNetPreview);
+    });
+  }
+
   function prefillEntryFormFromDate(dateStr) {
     if (!dateStr) return;
+    const goal = Storage.getActiveGoal();
+    renderEntryIncomeFields(goal);
     const entry = Storage.getEntryByDate(dateStr);
     document.getElementById('inputDate').value = dateStr;
-    document.getElementById('inputPrinting').value = entry ? entry.income1 || '' : '';
-    document.getElementById('inputTrading').value = entry ? entry.income2 || '' : '';
+    (goal && goal.incomeSources || []).forEach(src => {
+      const input = document.querySelector(`.entry-income-input[data-source-id="${src.id}"]`);
+      if (input) input.value = entry ? (Storage.incomeAmount(entry, src.id) || '') : '';
+    });
     document.getElementById('inputOther').value = entry ? entry.other || '' : '';
     document.getElementById('inputExpenses').value = entry ? entry.expenses || '' : '';
     document.getElementById('inputExpenseCategory').value = entry ? (entry.expenseCategory || '') : '';
@@ -444,11 +507,11 @@ const App = (() => {
   }
 
   function updateNetPreview() {
-    const printing = Number(document.getElementById('inputPrinting').value) || 0;
-    const trading = Number(document.getElementById('inputTrading').value) || 0;
+    const incomeTotal = Array.from(document.querySelectorAll('.entry-income-input'))
+      .reduce((sum, input) => sum + (Number(input.value) || 0), 0);
     const other = Number(document.getElementById('inputOther').value) || 0;
     const expenses = Number(document.getElementById('inputExpenses').value) || 0;
-    const net = printing + trading + other - expenses;
+    const net = incomeTotal + other - expenses;
     const el = document.getElementById('entryNetPreview');
     el.textContent = Utils.formatCurrency(net);
     el.style.color = net >= 0 ? 'var(--gold)' : 'var(--red)';
@@ -459,7 +522,7 @@ const App = (() => {
     const datePicker = document.getElementById('inputDatePicker');
 
     datePicker.addEventListener('change', () => prefillEntryFormFromDate(datePicker.value));
-    ['inputPrinting', 'inputTrading', 'inputOther', 'inputExpenses'].forEach(id => {
+    ['inputOther', 'inputExpenses'].forEach(id => {
       document.getElementById(id).addEventListener('input', updateNetPreview);
     });
 
@@ -471,10 +534,13 @@ const App = (() => {
       const dateStr = datePicker.value || Utils.todayStr();
       const wasExisting = !!Storage.getEntryByDate(dateStr);
       const expenses = Number(document.getElementById('inputExpenses').value) || 0;
+      const incomes = {};
+      document.querySelectorAll('.entry-income-input').forEach(input => {
+        incomes[input.dataset.sourceId] = Number(input.value) || 0;
+      });
       const entry = {
         date: dateStr,
-        income1: Number(document.getElementById('inputPrinting').value) || 0,
-        income2: Number(document.getElementById('inputTrading').value) || 0,
+        incomes,
         other: Number(document.getElementById('inputOther').value) || 0,
         expenses,
         expenseCategory: expenses > 0 ? (document.getElementById('inputExpenseCategory').value || 'Other') : '',
@@ -507,16 +573,14 @@ const App = (() => {
     });
 
     document.getElementById('btnResetDashboard').addEventListener('click', () => {
-      requirePin('PIN Required', 'Enter your PIN to reset this goal.', () => {
-        const goalName = (Storage.getActiveGoal() || {}).name || 'this goal';
-        confirmAction('Reset This Goal', `This permanently deletes every entry, streak, and achievement for "${goalName}". Your goal settings (name, targets, dates) and any other goals are kept. This cannot be undone.`, () => {
-          Storage.resetGoalData(Storage.getActiveGoalId());
-          Charts.destroyAll();
-          Notify.warning('Goal data reset. Starting fresh.');
-          setDefaultEntryDate();
-          renderEverything();
-          loadSettingsForm();
-        });
+      const goalName = (Storage.getActiveGoal() || {}).name || 'this goal';
+      confirmAction('Reset This Goal', `This permanently deletes every entry, streak, and achievement for "${goalName}". Your goal settings (name, targets, dates) and any other goals are kept. This cannot be undone.`, () => {
+        Storage.resetGoalData(Storage.getActiveGoalId());
+        Charts.destroyAll();
+        Notify.warning('Goal data reset. Starting fresh.');
+        setDefaultEntryDate();
+        renderEverything();
+        loadSettingsForm();
       });
     });
 
@@ -564,6 +628,7 @@ const App = (() => {
     const tbody = document.getElementById('historyTableBody');
     const emptyMsg = document.getElementById('historyEmpty');
     const stats = Dash.computeStats();
+    const sources = (stats.goal && stats.goal.incomeSources) || [];
     let entries = stats.entries.slice().reverse();
 
     if (filter) {
@@ -571,13 +636,16 @@ const App = (() => {
       entries = entries.filter(e => e.date.includes(f) || (e.notes || '').toLowerCase().includes(f));
     }
 
+    // Header row matches the active goal's current income sources
+    document.getElementById('historyTableHeadRow').innerHTML =
+      `<th>Date</th>${sources.map(s => `<th>${escapeHtml(s.label)}</th>`).join('')}<th>Other</th><th>Expenses</th><th>Net Savings</th><th>Running Total</th><th>Actions</th>`;
+
     emptyMsg.style.display = entries.length ? 'none' : 'block';
 
     tbody.innerHTML = entries.map(e => `
       <tr data-date="${e.date}">
         <td>${Utils.shortDate(e.date)}</td>
-        <td>${Utils.formatCurrency(e.income1)}</td>
-        <td>${Utils.formatCurrency(e.income2)}</td>
+        ${sources.map(s => `<td>${Utils.formatCurrency(Storage.incomeAmount(e, s.id))}</td>`).join('')}
         <td>${Utils.formatCurrency(e.other)}</td>
         <td>${Utils.formatCurrency(e.expenses)}${e.expenseCategory ? `<span class="cat-tag">${e.expenseCategory}</span>` : ''}</td>
         <td class="${e.net >= 0 ? 'net-pos' : 'net-neg'}">${Utils.formatCurrency(e.net)}</td>
@@ -619,14 +687,25 @@ const App = (() => {
   --------------------------------------------------------- */
   function tableRowsForExport() {
     const stats = Dash.computeStats();
-    const g = stats.goal || {};
-    const label1 = g.incomeLabel1 || 'Income1';
-    const label2 = g.incomeLabel2 || 'Income2';
-    return stats.entries.map(e => ({
-      Date: e.date, [label1]: e.income1, [label2]: e.income2, Other: e.other,
-      Expenses: e.expenses, ExpenseCategory: e.expenseCategory || '',
-      NetSavings: e.net, RunningTotal: e.runningTotal, Notes: e.notes || ''
-    }));
+    const sources = (stats.goal && stats.goal.incomeSources) || [];
+    // Disambiguate duplicate labels so they don't collide as object keys / CSV columns
+    const seen = {};
+    const columnNames = sources.map(s => {
+      const base = s.label || 'Income';
+      seen[base] = (seen[base] || 0) + 1;
+      return seen[base] > 1 ? `${base} (${seen[base]})` : base;
+    });
+    return stats.entries.map(e => {
+      const row = { Date: e.date };
+      sources.forEach((s, i) => { row[columnNames[i]] = Storage.incomeAmount(e, s.id); });
+      row.Other = e.other;
+      row.Expenses = e.expenses;
+      row.ExpenseCategory = e.expenseCategory || '';
+      row.NetSavings = e.net;
+      row.RunningTotal = e.runningTotal;
+      row.Notes = e.notes || '';
+      return row;
+    });
   }
 
   function exportCSV() {
@@ -683,7 +762,7 @@ const App = (() => {
   function restoreBackupFile(e) {
     const file = e.target.files[0];
     if (!file) return;
-    requirePin('PIN Required', 'Enter your PIN to restore a backup. This will overwrite current data.', () => {
+    confirmAction('Restore Backup', 'This will overwrite current data with the contents of the backup file. Continue?', () => {
       const reader = new FileReader();
       reader.onload = () => {
         try {
@@ -703,97 +782,69 @@ const App = (() => {
   }
 
   /* ---------------------------------------------------------
-     PIN LOCK
+     AUTH GATE (shown when Cloud Sync is configured — blocks all
+     app content until the person is signed in with their account)
   --------------------------------------------------------- */
-  let pinPromptResolver = null;
-
-  function checkLockOnStartup() {
-    if (Storage.isPinEnabled()) showLockScreen();
+  function showAuthGate(mode) {
+    const gate = document.getElementById('authGateScreen');
+    const checking = document.getElementById('gateCheckingState');
+    const form = document.getElementById('gateAuthForm');
+    if (mode === 'checking') {
+      checking.hidden = false;
+      form.hidden = true;
+    } else {
+      checking.hidden = true;
+      form.hidden = false;
+      document.getElementById('gateError').textContent = '';
+      setTimeout(() => document.getElementById('gateEmail').focus(), 50);
+    }
+    gate.classList.add('show');
+  }
+  function hideAuthGate() {
+    document.getElementById('authGateScreen').classList.remove('show');
   }
 
-  function showLockScreen() {
-    const goal = Storage.getActiveGoal();
-    document.getElementById('lockGoalName').textContent = `${(goal && goal.name) || 'Your goal'} is locked.`;
-    document.getElementById('lockPinInput').value = '';
-    document.getElementById('lockError').textContent = '';
-    document.getElementById('lockScreen').classList.add('show');
-    setTimeout(() => document.getElementById('lockPinInput').focus(), 50);
-  }
-  function hideLockScreen() {
-    document.getElementById('lockScreen').classList.remove('show');
-  }
-
-  function bindPinLock() {
-    document.getElementById('lockForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const pin = document.getElementById('lockPinInput').value;
-      const ok = await Storage.verifyPin(pin);
-      if (ok) {
-        hideLockScreen();
-      } else {
-        document.getElementById('lockError').textContent = 'Incorrect PIN. Try again.';
-        document.getElementById('lockPinInput').value = '';
-        document.getElementById('lockPinInput').focus();
+  function bindAuthGate() {
+    document.getElementById('btnGateSignIn').addEventListener('click', async () => {
+      const email = document.getElementById('gateEmail').value.trim();
+      const password = document.getElementById('gatePassword').value;
+      const errEl = document.getElementById('gateError');
+      errEl.textContent = '';
+      if (!email || !password) { errEl.textContent = 'Enter your email and password.'; return; }
+      try {
+        await Sync.signIn(email, password);
+      } catch (err) {
+        errEl.textContent = err.message;
       }
     });
 
-    document.getElementById('btnForgotPin').addEventListener('click', () => {
-      document.getElementById('forgotPinConfirmText').value = '';
-      document.getElementById('forgotPinOverlay').classList.add('show');
-    });
-    document.getElementById('forgotPinCancel').addEventListener('click', () => {
-      document.getElementById('forgotPinOverlay').classList.remove('show');
-    });
-    document.getElementById('forgotPinConfirm').addEventListener('click', () => {
-      if (document.getElementById('forgotPinConfirmText').value.trim() !== 'ERASE') {
-        Notify.error('Type ERASE exactly to confirm.');
-        return;
-      }
-      Storage.eraseEverything();
-      Charts.destroyAll();
-      document.getElementById('forgotPinOverlay').classList.remove('show');
-      hideLockScreen();
-      Notify.warning('All local data erased. Starting fresh.');
-      setDefaultEntryDate();
-      renderEverything();
-      loadSettingsForm();
-    });
-
-    document.getElementById('pinPromptForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const pin = document.getElementById('pinPromptInput').value;
-      const ok = await Storage.verifyPin(pin);
-      if (ok) {
-        const resolve = pinPromptResolver;
-        closePinPrompt();
-        if (resolve) resolve(true);
-      } else {
-        document.getElementById('pinPromptError').textContent = 'Incorrect PIN. Try again.';
-        document.getElementById('pinPromptInput').value = '';
-        document.getElementById('pinPromptInput').focus();
+    document.getElementById('btnGateSignUp').addEventListener('click', async () => {
+      const email = document.getElementById('gateEmail').value.trim();
+      const password = document.getElementById('gatePassword').value;
+      const errEl = document.getElementById('gateError');
+      errEl.textContent = '';
+      if (!email || !password) { errEl.textContent = 'Enter an email and password.'; return; }
+      if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+      try {
+        await Sync.signUp(email, password);
+      } catch (err) {
+        errEl.textContent = err.message;
       }
     });
-    document.getElementById('pinPromptCancel').addEventListener('click', () => {
-      const resolve = pinPromptResolver;
-      closePinPrompt();
-      if (resolve) resolve(false);
+
+    document.getElementById('btnGateForgotPassword').addEventListener('click', async () => {
+      const email = document.getElementById('gateEmail').value.trim();
+      const errEl = document.getElementById('gateError');
+      if (!email) { errEl.textContent = 'Enter your email above first, then click this again.'; return; }
+      try {
+        await Sync.resetPassword(email);
+        errEl.style.color = 'var(--green)';
+        errEl.textContent = 'Password reset email sent — check your inbox.';
+      } catch (err) {
+        errEl.style.color = '';
+        errEl.textContent = err.message;
+      }
     });
-  }
-
-  function closePinPrompt() {
-    document.getElementById('pinPromptOverlay').classList.remove('show');
-    pinPromptResolver = null;
-  }
-
-  function requirePin(title, message, onSuccess) {
-    if (!Storage.isPinEnabled()) { onSuccess(); return; }
-    document.getElementById('pinPromptTitle').textContent = title;
-    document.getElementById('pinPromptMessage').textContent = message;
-    document.getElementById('pinPromptInput').value = '';
-    document.getElementById('pinPromptError').textContent = '';
-    document.getElementById('pinPromptOverlay').classList.add('show');
-    setTimeout(() => document.getElementById('pinPromptInput').focus(), 50);
-    pinPromptResolver = (confirmed) => { if (confirmed) onSuccess(); };
   }
 
   /* ---------------------------------------------------------
@@ -882,6 +933,7 @@ const App = (() => {
 
   // --- Hooks called by sync.js — kept on the public App API ---
   function onSyncSignedIn(user, result) {
+    hideAuthGate();
     renderSyncStatus();
     renderEverything();
     loadSettingsForm();
@@ -892,10 +944,11 @@ const App = (() => {
     }
   }
   function onSyncSignedOut() {
+    if (Sync.isConfigured()) showAuthGate('form');
     renderSyncStatus();
   }
   function onSyncRemoteUpdate(result) {
-    renderEverything();
+    renderEverything(true); // true = don't immediately re-push what we just pulled
     loadSettingsForm();
     Notify.info('Updated from another device.');
   }
@@ -915,29 +968,83 @@ const App = (() => {
 
     document.getElementById('setGoalName').value = goal.name || '';
     document.getElementById('setMission').value = goal.missionStatement || '';
-    document.getElementById('setLabel1').value = goal.incomeLabel1 || '';
-    document.getElementById('setLabel2').value = goal.incomeLabel2 || '';
     document.getElementById('setGoal').value = goal.targetAmount || '';
     document.getElementById('setStretchGoal').value = goal.stretchGoal || '';
     document.getElementById('setStartDate').value = goal.startDate || '';
     document.getElementById('setDeadline').value = goal.deadline || '';
     document.getElementById('setInternalDeadline').value = goal.internalDeadline || '';
     document.getElementById('setDailyTarget').value = goal.dailyTarget || '';
-    document.getElementById('setPrintTarget').value = goal.incomeTarget1 || '';
-    document.getElementById('setTradeTarget').value = goal.incomeTarget2 || '';
     document.getElementById('setTheme').value = app.theme;
     document.getElementById('setCurrency').value = app.currency;
     pendingGoalPhoto = undefined;
     renderGoalPhotoPreview(goal.photo);
-
-    const pinEnabled = Storage.isPinEnabled();
-    document.getElementById('pinStatusLabel').textContent = pinEnabled ? 'PIN Lock — Enabled' : 'PIN Lock — Disabled';
-    document.getElementById('btnRemovePin').hidden = !pinEnabled;
-    document.getElementById('setPinNew').value = '';
-    document.getElementById('setPinConfirm').value = '';
+    syncDaysToSaveFromDeadline();
+    renderIncomeSourcesEditor(goal);
 
     renderManageGoalsList();
     renderSyncStatus();
+  }
+
+  /* ---------------------------------------------------------
+     INCOME SOURCES EDITOR (Settings) — add/rename/retarget/remove
+  --------------------------------------------------------- */
+  function renderIncomeSourcesEditor(goal) {
+    const container = document.getElementById('incomeSourcesEditor');
+    const sources = (goal && goal.incomeSources) || [];
+    if (!sources.length) {
+      container.innerHTML = '<p class="section-sub">No income sources yet — click "Add Income Source" above.</p>';
+      return;
+    }
+    container.innerHTML = sources.map(src => `
+      <div class="income-source-row" data-source-id="${src.id}">
+        <input type="text" class="income-source-label" value="${escapeHtml(src.label)}" placeholder="Source name">
+        <input type="number" class="income-source-target" value="${src.target || ''}" placeholder="Daily target (KSh)">
+        <button type="button" class="icon-btn small btn-danger" data-remove-source="${src.id}" title="Remove source">✕</button>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('[data-remove-source]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sourceId = btn.dataset.removeSource;
+        const source = sources.find(s => s.id === sourceId);
+        confirmAction('Remove Income Source', `Remove "${source ? source.label : 'this source'}"? Past entries keep their recorded amounts (still counted in your totals), but this labeled row disappears from future entries.`, () => {
+          Storage.removeIncomeSource(Storage.getActiveGoalId(), sourceId);
+          Notify.success('Income source removed.');
+          renderEverything();
+          loadSettingsForm();
+        });
+      });
+    });
+  }
+
+  function collectIncomeSourceEdits() {
+    // Reads the current editor DOM and returns [{id, label, target}, ...] —
+    // used right before saving Settings so label/target edits are captured.
+    return Array.from(document.querySelectorAll('.income-source-row')).map(row => ({
+      id: row.dataset.sourceId,
+      label: row.querySelector('.income-source-label').value.trim() || 'Income Source',
+      target: Number(row.querySelector('.income-source-target').value) || 0
+    }));
+  }
+
+  /* ---------------------------------------------------------
+     DEADLINE BY DAYS-TO-SAVE (Settings)
+  --------------------------------------------------------- */
+  function syncDaysToSaveFromDeadline() {
+    const start = document.getElementById('setStartDate').value;
+    const deadline = document.getElementById('setDeadline').value;
+    const daysInput = document.getElementById('setDaysToSave');
+    if (start && deadline) {
+      const days = Utils.daysBetween(start, deadline);
+      if (days > 0) daysInput.value = days;
+    }
+  }
+  function syncDeadlineFromDaysToSave() {
+    const start = document.getElementById('setStartDate').value || Utils.todayStr();
+    const days = Number(document.getElementById('setDaysToSave').value);
+    if (days > 0) {
+      document.getElementById('setDeadline').value = Dash.addDays(start, days);
+    }
   }
 
   function renderGoalPhotoPreview(photoDataUrl) {
@@ -984,14 +1091,12 @@ const App = (() => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.delete;
         const g = Storage.getGoal(id);
-        requirePin('PIN Required', `Enter your PIN to delete "${g.name}".`, () => {
-          confirmAction('Delete Goal', `Permanently delete "${g.name}" and all of its entries and achievements? This cannot be undone.`, () => {
-            Storage.deleteGoal(id);
-            Charts.destroyAll();
-            Notify.warning(`"${g.name}" deleted.`);
-            renderEverything();
-            loadSettingsForm();
-          });
+        confirmAction('Delete Goal', `Permanently delete "${g.name}" and all of its entries and achievements? This cannot be undone.`, () => {
+          Storage.deleteGoal(id);
+          Charts.destroyAll();
+          Notify.warning(`"${g.name}" deleted.`);
+          renderEverything();
+          loadSettingsForm();
         });
       });
     });
@@ -1019,33 +1124,19 @@ const App = (() => {
       renderGoalPhotoPreview(null);
     });
 
-    document.getElementById('btnSavePin').addEventListener('click', () => {
-      const newPin = document.getElementById('setPinNew').value;
-      const confirmPin = document.getElementById('setPinConfirm').value;
-      if (!/^\d{4,8}$/.test(newPin)) { Notify.error('PIN must be 4–8 digits.'); return; }
-      if (newPin !== confirmPin) { Notify.error('PINs do not match.'); return; }
-
-      const apply = async () => {
-        await Storage.setPin(newPin);
-        Notify.success('PIN saved.');
-        loadSettingsForm();
-      };
-      if (Storage.isPinEnabled()) {
-        requirePin('Confirm Current PIN', 'Enter your current PIN to set a new one.', apply);
-      } else {
-        apply();
-      }
-    });
-
-    document.getElementById('btnRemovePin').addEventListener('click', () => {
-      requirePin('Remove PIN', 'Enter your current PIN to remove PIN protection.', () => {
-        Storage.disablePin();
-        Notify.success('PIN protection removed.');
-        loadSettingsForm();
-      });
-    });
-
     document.getElementById('btnAddGoalFromSettings').addEventListener('click', openCreateGoalModal);
+
+    document.getElementById('btnAddIncomeSource').addEventListener('click', () => {
+      const goalId = Storage.getActiveGoalId();
+      Storage.addIncomeSource(goalId, 'New Income Source', 0);
+      Notify.success('Income source added — rename and set its target below.');
+      renderEverything();
+      loadSettingsForm();
+    });
+
+    document.getElementById('setDeadline').addEventListener('change', syncDaysToSaveFromDeadline);
+    document.getElementById('setStartDate').addEventListener('change', syncDaysToSaveFromDeadline);
+    document.getElementById('setDaysToSave').addEventListener('input', syncDeadlineFromDaysToSave);
 
     document.getElementById('settingsForm').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -1053,16 +1144,13 @@ const App = (() => {
       const goalPatch = {
         name: document.getElementById('setGoalName').value.trim() || 'My Goal',
         missionStatement: document.getElementById('setMission').value.trim(),
-        incomeLabel1: document.getElementById('setLabel1').value.trim() || 'Income Source 1',
-        incomeLabel2: document.getElementById('setLabel2').value.trim() || 'Income Source 2',
+        incomeSources: collectIncomeSourceEdits(),
         targetAmount: Number(document.getElementById('setGoal').value) || 600000,
         stretchGoal: Number(document.getElementById('setStretchGoal').value) || 650000,
         startDate: document.getElementById('setStartDate').value || Utils.todayStr(),
         deadline: document.getElementById('setDeadline').value || '2027-07-01',
         internalDeadline: document.getElementById('setInternalDeadline').value || '2027-06-01',
         dailyTarget: Number(document.getElementById('setDailyTarget').value) || 1820,
-        incomeTarget1: Number(document.getElementById('setPrintTarget').value) || 300,
-        incomeTarget2: Number(document.getElementById('setTradeTarget').value) || 1520,
       };
       if (pendingGoalPhoto !== undefined) goalPatch.photo = pendingGoalPhoto;
       Storage.updateGoal(goalId, goalPatch);
@@ -1077,6 +1165,7 @@ const App = (() => {
       document.getElementById('whatifSlider').dataset.touched = '';
       Notify.success('Settings saved successfully.');
       renderEverything();
+      loadSettingsForm();
     });
   }
 
@@ -1119,35 +1208,60 @@ const App = (() => {
   --------------------------------------------------------- */
   function bindKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
-      const locked = document.getElementById('lockScreen').classList.contains('show');
-      const pinPrompting = document.getElementById('pinPromptOverlay').classList.contains('show');
-      const forgotOpen = document.getElementById('forgotPinOverlay').classList.contains('show');
+      const gated = document.getElementById('authGateScreen').classList.contains('show');
       const creatingGoal = document.getElementById('createGoalOverlay').classList.contains('show');
 
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
         if (e.key === 'Escape') e.target.blur();
-        if (!locked && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        if (!gated && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
           e.preventDefault();
           document.getElementById('entryForm').requestSubmit();
         }
         return;
       }
 
-      if (locked) return;
+      if (gated) return; // no shortcuts reach the app while the auth gate is up
 
       if (e.key === 'Escape') {
-        if (pinPrompting) { closePinPrompt(); return; }
-        if (forgotOpen) { document.getElementById('forgotPinOverlay').classList.remove('show'); return; }
         if (creatingGoal) { closeCreateGoalModal(); return; }
         closeModal();
         document.getElementById('celebrateOverlay').classList.remove('show');
       }
-      if (pinPrompting || forgotOpen || creatingGoal) return;
+      if (creatingGoal) return;
 
       if (e.key.toLowerCase() === 'n') { goToPage('entry'); }
       const idx = Number(e.key);
       if (idx >= 1 && idx <= PAGE_ORDER.length) goToPage(PAGE_ORDER[idx - 1]);
     });
+  }
+
+  /* ---------------------------------------------------------
+     MIDNIGHT REFRESH — "today" (and therefore today's targets,
+     days remaining, streaks, etc.) rolls over at local midnight.
+     A left-open tab won't re-render purely from time passing, so
+     this polls for the date changing and forces a refresh when it
+     does — plus a check on regaining focus, since background tabs
+     can have their timers throttled by the browser.
+  --------------------------------------------------------- */
+  let lastKnownToday = null;
+
+  function bindMidnightRefresh() {
+    lastKnownToday = Utils.todayStr();
+    setInterval(checkForNewDay, 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkForNewDay();
+    });
+    window.addEventListener('focus', checkForNewDay);
+  }
+
+  function checkForNewDay() {
+    const today = Utils.todayStr();
+    if (today !== lastKnownToday) {
+      lastKnownToday = today;
+      setDefaultEntryDate();
+      renderEverything();
+      Notify.info("A new day has started — today's targets have reset.");
+    }
   }
 
   /* ---------------------------------------------------------

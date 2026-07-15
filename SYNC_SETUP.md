@@ -88,10 +88,19 @@ needs to know that domain is allowed to use this project's auth:
 ## 7. Test it
 
 1. Open the app (locally or on your hosted domain).
-2. Go to **Settings → Cloud Sync**.
-3. The banner should now say *"Sign in or create an account to sync your goals across devices"* instead of the "not set up" message.
-4. Create an account with an email/password — that device is now synced.
-5. Open the same URL on a second device (or a private/incognito window) and sign in with the same account — your goals and entries should appear within a couple of seconds.
+2. As soon as `js/firebase-config.js` has real values, the app now shows a
+   full-screen sign-in gate on load instead of going straight to the
+   dashboard — this is intentional: once sync is configured, an account is
+   required to see anything, rather than sync being an optional extra
+   buried in Settings.
+3. Create an account with an email/password on the gate — the app unlocks
+   and that device is now synced.
+4. Open the same URL on a second device (or a private/incognito window) and
+   sign in with the same account on the gate — your goals and entries
+   should appear within a couple of seconds.
+5. Settings → **Cloud Sync** shows the same sign-in status and a manual
+   "Sync Now" button if you ever want to force a sync outside the automatic
+   background one.
 
 ---
 

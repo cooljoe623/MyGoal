@@ -56,8 +56,6 @@ const Charts = (() => {
   function renderAll(stats) {
     const entries = stats.entries;
     const last14 = lastN(entries, 14);
-    const label1 = (stats.goal && stats.goal.incomeLabel1) || 'Income 1';
-    const label2 = (stats.goal && stats.goal.incomeLabel2) || 'Income 2';
 
     // Daily income
     makeOrUpdate('chartDaily', {
@@ -97,15 +95,20 @@ const Charts = (() => {
       options: baseOptions()
     });
 
-    // Income 1 vs Income 2
+    // Income source comparison — one line per dynamic income source
+    const sources = (stats.goal && stats.goal.incomeSources) || [];
     makeOrUpdate('chartPrintTrade', {
       type: 'line',
       data: {
         labels: last14.map(e => Utils.shortDate(e.date)),
-        datasets: [
-          { label: label1, data: last14.map(e => e.income1 || 0), borderColor: GOLD, backgroundColor: GOLD_SOFT, tension: 0.35, fill: true },
-          { label: label2, data: last14.map(e => e.income2 || 0), borderColor: '#f4d976', backgroundColor: 'rgba(244,217,118,0.15)', tension: 0.35, fill: true }
-        ]
+        datasets: sources.map((src, i) => ({
+          label: src.label,
+          data: last14.map(e => Storage.incomeAmount(e, src.id)),
+          borderColor: PALETTE[i % PALETTE.length],
+          backgroundColor: PALETTE[i % PALETTE.length] + '26', // ~15% alpha
+          tension: 0.35,
+          fill: true
+        }))
       },
       options: baseOptions()
     });

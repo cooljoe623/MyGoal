@@ -152,15 +152,6 @@ const Utils = (() => {
     });
   }
 
-  /** Hash a PIN with SHA-256 (Web Crypto) — returns a hex string. Not cryptographic-grade
-   *  protection (this is a client-only app with no server), just a deterrent so a PIN
-   *  isn't sitting in localStorage as plain text. */
-  async function hashPin(pin) {
-    const enc = new TextEncoder().encode('sfm_salt::' + pin);
-    const buf = await crypto.subtle.digest('SHA-256', enc);
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-
   /** Download a Blob as a file */
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -197,6 +188,6 @@ const Utils = (() => {
   return {
     formatCurrency, formatNumber, toDateStr, todayStr, daysBetween,
     prettyDate, shortDate, clamp, debounce, animateCounter, uid,
-    confettiBurst, downloadBlob, quoteOfTheDay, compressImageFile, hashPin
+    confettiBurst, downloadBlob, quoteOfTheDay, compressImageFile
   };
 })();

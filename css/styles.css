@@ -393,31 +393,34 @@ kbd { background: rgba(255,255,255,0.08); border: 1px solid var(--panel-border);
 .celebrate-box h2 { font-family: var(--font-display); color: var(--gold); margin: 0 0 10px; }
 .celebrate-box p { color: var(--text-dim); margin-bottom: 22px; }
 
-/* ---------- PIN Lock screen ---------- */
+/* ---------- Auth gate (shown when Cloud Sync is configured) ---------- */
 .lock-overlay {
   position: fixed; inset: 0; background: rgba(5,5,5,0.92); backdrop-filter: blur(6px);
   display: none; align-items: center; justify-content: center; z-index: 500; text-align: center;
 }
 .lock-overlay.show { display: flex; }
-.lock-box { max-width: 340px; padding: 36px 32px; }
+.lock-box { max-width: 360px; padding: 36px 32px; }
 .lock-emblem { width: 54px; height: 54px; margin: 0 auto 14px; }
 .lock-box h2 { font-family: var(--font-display); margin: 0 0 6px; }
 .lock-sub { color: var(--text-dim); font-size: 13px; margin-bottom: 20px; }
-#lockForm { display: flex; flex-direction: column; gap: 12px; }
-#lockPinInput, #pinPromptInput { text-align: center; letter-spacing: 0.3em; font-size: 20px; font-family: var(--font-display); }
-.lock-error { color: var(--red); font-size: 12px; min-height: 16px; margin: 0; }
+.gate-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 6px; }
+.gate-fields input { text-align: left; }
+.gate-actions { display: flex; gap: 10px; justify-content: center; margin-top: 6px; flex-wrap: wrap; }
+.lock-error { color: var(--red); font-size: 12px; min-height: 16px; margin: 8px 0 0; }
 .lock-forgot { background: none; border: none; color: var(--text-faint); font-size: 12px; margin-top: 16px; cursor: pointer; text-decoration: underline; }
 .lock-forgot:hover { color: var(--gold); }
 
-/* ---------- Settings PIN fields ---------- */
-.pin-fields { display: flex; gap: 10px; flex-wrap: wrap; }
-.pin-fields input { flex: 1; min-width: 140px; }
-#forgotPinConfirmText { width: 100%; margin: 10px 0; }
-#pinPromptForm .modal-actions { margin-top: 6px; }
 /* ---------- Cloud sync panels (Settings) ---------- */
 .sync-auth-form, .sync-signedin-panel { margin-bottom: 20px; }
 .sync-signedin-panel p { color: var(--text-dim); font-size: 13px; margin: 0 0 12px; }
 .goal-switcher-wrap { margin-bottom: 16px; }
+
+/* ---------- Income sources editor (Settings) ---------- */
+.income-sources-editor { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.income-source-row { display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; align-items: center; }
+.income-source-row input { width: 100%; }
+.income-source-row .icon-btn.btn-danger { border-color: rgba(224,93,93,0.4); color: var(--red); }
+.income-source-row .icon-btn.btn-danger:hover { background: rgba(224,93,93,0.15); }
 .goal-switcher-label { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
 .goal-switcher { width: 100%; font-size: 13px; padding: 9px 10px; }
 
