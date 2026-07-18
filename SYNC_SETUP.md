@@ -108,6 +108,11 @@ needs to know that domain is allowed to use this project's auth:
 
 - Each device keeps working instantly from its own local copy — sync happens
   in the background, not in the critical path of saving an entry.
+- **All of your goals sync, not just the one you're currently viewing.** If
+  your account has 3 goals, every device signed into that account ends up
+  with all 3 goals (and each one's full entry history) — signing in on a
+  new phone or a new browser reproduces your whole account, not just
+  whichever goal happened to be active when you last synced.
 - Every local change is pushed to the cloud a couple of seconds after you
   make it (debounced, so rapid edits don't spam the network).
 - Other signed-in devices get changes pushed to them in near-real-time while
@@ -121,6 +126,17 @@ needs to know that domain is allowed to use this project's auth:
   resurrect the deleted data next time it syncs. For a personal app used by
   one person across their own devices, mostly online, this is unlikely to
   bite you — but it's worth knowing rather than assuming sync is bulletproof.
-- `theme` (dark/light) and which goal is "active" are kept **per-device**,
-  not synced — so you can have your phone showing one goal while your laptop
-  shows another, without them fighting over it.
+- `theme` (dark/light) is kept **per-device**, not synced. Which goal is
+  "active" starts out synced — the first time you sign into an account on a
+  new device, it opens on whichever goal was active elsewhere on that
+  account — but after that, switching goals on one device doesn't force a
+  switch on your other open devices, so your phone and laptop can look at
+  different goals at the same time without fighting over it.
+- Opening the app for the very first time (before ever signing in) creates
+  one starter goal locally so there's something to look at. If you then sign
+  into an account that already has real goals, that untouched starter goal
+  is discarded rather than kept as a spurious extra — you'll see exactly the
+  account's real goals, not the account's goals *plus* an empty leftover
+  one. (If you'd already started actually using that local goal — logged
+  any entries against it — it's treated as real data instead and kept
+  alongside your account's other goals.)

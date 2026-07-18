@@ -48,9 +48,7 @@ const Dash = (() => {
     const startDate = (goal && goal.startDate) || today;
     const missionDay = Utils.daysBetween(startDate, today) + 1;
     const deadline = (goal && goal.deadline) || '2027-07-01';
-    const internalDeadline = (goal && goal.internalDeadline) || deadline;
     const daysRemaining = Utils.daysBetween(today, deadline);
-    const daysRemainingInternal = Utils.daysBetween(today, internalDeadline);
 
     const totalEntries = withNet.length;
     const currentDailyAverage = totalEntries ? currentSavings / Math.max(missionDay, 1) : 0;
@@ -117,10 +115,10 @@ const Dash = (() => {
     return {
       goal, entries: withNet, today,
       currentSavings, goalAmount: targetAmount, remaining, percentage,
-      missionDay, daysRemaining, daysRemainingInternal,
+      missionDay, daysRemaining,
       totalEntries, currentDailyAverage, weeklyAverage, monthlyAverage,
       currentStreak, longestStreak, daysAheadBehind,
-      estimatedPurchaseDate, estimatedPurchaseDateAtTarget, todaysEntry,
+      estimatedPurchaseDate, estimatedPurchaseDateAtTarget, daysNeededFromNow, daysNeededAtTarget, todaysEntry,
       todaysNet, todaysRemaining, todaysTargetMet, todaysSourceBreakdown,
       weekMap, monthMap, weekdayMap, categoryMap
     };

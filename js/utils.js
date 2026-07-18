@@ -152,6 +152,26 @@ const Utils = (() => {
     });
   }
 
+  /** Load an external script on demand, only once, returning a promise that
+   *  resolves when it's ready. Used for heavy libraries (xlsx, jsPDF) that
+   *  are only needed if the person actually exports something — loading
+   *  them eagerly on every page load would slow down the initial load for
+   *  no benefit to people who never export. */
+  const _scriptPromises = {};
+  function loadScriptOnce(src) {
+    if (_scriptPromises[src]) return _scriptPromises[src];
+    _scriptPromises[src] = new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) { resolve(); return; }
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
+    });
+    return _scriptPromises[src];
+  }
+
   /** Download a Blob as a file */
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -188,6 +208,6 @@ const Utils = (() => {
   return {
     formatCurrency, formatNumber, toDateStr, todayStr, daysBetween,
     prettyDate, shortDate, clamp, debounce, animateCounter, uid,
-    confettiBurst, downloadBlob, quoteOfTheDay, compressImageFile
+    confettiBurst, downloadBlob, quoteOfTheDay, compressImageFile, loadScriptOnce
   };
 })();

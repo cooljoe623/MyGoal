@@ -137,6 +137,11 @@ a { color: var(--gold); }
   font-size: 14px;
   color: var(--text-dim);
 }
+.danger-zone-inset {
+  background: rgba(224,93,93,0.06);
+  border-color: rgba(224,93,93,0.25);
+  margin-bottom: 20px;
+}
 
 /* ---------- Hero ---------- */
 .hero {
@@ -194,8 +199,6 @@ a { color: var(--gold); }
 }
 .countdown-chip strong { font-family: var(--font-display); font-size: 20px; color: var(--gold); }
 .countdown-chip span { font-size: 12px; color: var(--text-dim); }
-.countdown-chip.alt { background: rgba(255,255,255,0.03); border-color: var(--panel-border); }
-.countdown-chip.alt strong { color: var(--text); }
 
 /* ---------- Quote strip ---------- */
 .quote-strip {
@@ -308,6 +311,14 @@ select option {
 .history-table tr:hover td { background: rgba(212,175,55,0.04); color: var(--text); }
 .net-pos { color: var(--green) !important; }
 .net-neg { color: var(--red) !important; }
+.note-cell {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+}
+.note-empty { color: var(--text-faint); }
 .row-actions { display: flex; gap: 6px; }
 .table-empty { text-align: center; padding: 30px; color: var(--text-faint); display: none; }
 
@@ -411,7 +422,7 @@ kbd { background: rgba(255,255,255,0.08); border: 1px solid var(--panel-border);
 .lock-forgot:hover { color: var(--gold); }
 
 /* ---------- Cloud sync panels (Settings) ---------- */
-.sync-auth-form, .sync-signedin-panel { margin-bottom: 20px; }
+.sync-signedin-panel { margin-bottom: 20px; }
 .sync-signedin-panel p { color: var(--text-dim); font-size: 13px; margin: 0 0 12px; }
 .goal-switcher-wrap { margin-bottom: 16px; }
 

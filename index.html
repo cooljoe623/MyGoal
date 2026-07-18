@@ -115,11 +115,9 @@
             <div class="hero-stat"><span class="hero-stat-label">Goal</span><span class="hero-stat-value" id="heroGoal">KSh 600,000</span></div>
             <div class="hero-stat"><span class="hero-stat-label">Stretch Goal</span><span class="hero-stat-value" id="heroStretch">KSh 650,000</span></div>
             <div class="hero-stat"><span class="hero-stat-label">Deadline</span><span class="hero-stat-value" id="heroDeadline">1 Jul 2027</span></div>
-            <div class="hero-stat"><span class="hero-stat-label">Internal Goal</span><span class="hero-stat-value" id="heroInternal">1 Jun 2027</span></div>
           </div>
           <div class="hero-countdown">
             <div class="countdown-chip"><strong id="countdownDays">—</strong><span>days to deadline</span></div>
-            <div class="countdown-chip alt"><strong id="countdownInternalDays">—</strong><span>days to internal goal</span></div>
           </div>
         </div>
       </div>
@@ -398,24 +396,23 @@
           Checking sync configuration…
         </div>
 
-        <div id="syncAuthForm" class="sync-auth-form" hidden>
-          <div class="form-grid">
-            <div class="form-row"><label>Email</label><input type="email" id="syncEmail" autocomplete="username"></div>
-            <div class="form-row"><label>Password</label><input type="password" id="syncPassword" autocomplete="current-password" placeholder="At least 6 characters"></div>
-          </div>
-          <div class="form-actions">
-            <button type="button" class="btn btn-gold" id="btnSyncSignIn">Sign In</button>
-            <button type="button" class="btn btn-outline" id="btnSyncSignUp">Create Account</button>
-            <button type="button" class="btn btn-ghost" id="btnSyncForgotPassword">Forgot password?</button>
-          </div>
-        </div>
-
         <div id="syncSignedInPanel" class="sync-signedin-panel" hidden>
           <p id="syncSignedInText"></p>
           <div class="form-actions">
             <button type="button" class="btn btn-outline" id="btnSyncNow">Sync Now</button>
             <button type="button" class="btn btn-outline btn-danger" id="btnSyncSignOut">Sign Out</button>
           </div>
+        </div>
+
+        <div class="section-head"><h2 style="font-size:15px;">Danger Zone</h2></div>
+        <div class="glass-card-inset danger-zone-inset">
+          <p style="margin:0 0 10px;">
+            Permanently erase everything: all goals, entries, and settings on this
+            device. <span id="dangerZoneAccountNote">If you're signed in, this also
+            deletes your account and cloud data — you'd need to create a new
+            account to use sync again.</span>
+          </p>
+          <button type="button" class="btn btn-outline btn-danger" id="btnResetApp">Reset App — Erase Everything</button>
         </div>
 
         <div class="section-head">
@@ -435,7 +432,6 @@
             <label>...or set Deadline by days to save</label>
             <input type="number" id="setDaysToSave" min="1" placeholder="e.g. 365">
           </div>
-          <div class="form-row"><label>Internal Goal Date</label><input type="date" id="setInternalDeadline"></div>
         </div>
 
         <div class="form-row">
@@ -533,7 +529,22 @@
         <button type="button" class="btn btn-gold" id="btnGateSignIn">Sign In</button>
         <button type="button" class="btn btn-outline" id="btnGateSignUp">Create Account</button>
       </div>
-      <button type="button" class="lock-forgot" id="btnGateForgotPassword">Forgot password?</button>
+      <button type="button" class="lock-forgot" id="btnGateResetApp">Reset App</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============== RESET APP CONFIRMATION MODAL ============== -->
+<div class="modal-overlay" id="resetAppOverlay">
+  <div class="modal-box glass-card">
+    <h3 id="resetAppTitle">Reset App</h3>
+    <p id="resetAppMessage">This will permanently erase everything.</p>
+    <p>Type <strong>DELETE</strong> below to confirm.</p>
+    <input type="text" id="resetAppConfirmText" placeholder="Type DELETE" autocomplete="off">
+    <p class="lock-error" id="resetAppError"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="resetAppCancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="resetAppConfirm">Erase Everything</button>
     </div>
   </div>
 </div>
@@ -547,6 +558,10 @@
       <div class="form-row"><label>Goal Name</label><input type="text" id="newGoalName" placeholder="e.g. New Laptop" required></div>
       <div class="form-row"><label>Target Amount</label><input type="number" id="newGoalAmount" placeholder="e.g. 150000" required></div>
       <div class="form-row"><label>Deadline</label><input type="date" id="newGoalDeadline" required></div>
+      <div class="form-row">
+        <label>...or set Deadline by days to save</label>
+        <input type="number" id="newGoalDaysToSave" min="1" placeholder="e.g. 365">
+      </div>
       <p class="section-sub">You can fine-tune photo, income labels, and everything else afterward in Settings.</p>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" id="createGoalCancel">Cancel</button>
@@ -579,20 +594,18 @@
 </div>
 
 <!-- ============== SCRIPTS ============== -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/utils.js"></script>
-<script src="js/storage.js"></script>
-<script src="js/notifications.js"></script>
-<script src="js/dashboard.js"></script>
-<script src="js/charts.js"></script>
-<script src="js/calendar.js"></script>
-<script src="js/firebase-config.js"></script>
-<script src="js/sync.js"></script>
-<script src="js/app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js" defer></script>
+<script src="js/utils.js" defer></script>
+<script src="js/storage.js" defer></script>
+<script src="js/notifications.js" defer></script>
+<script src="js/dashboard.js" defer></script>
+<script src="js/charts.js" defer></script>
+<script src="js/calendar.js" defer></script>
+<script src="js/firebase-config.js" defer></script>
+<script src="js/sync.js" defer></script>
+<script src="js/app.js" defer></script>
 </body>
 </html>

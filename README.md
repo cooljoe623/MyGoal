@@ -1,8 +1,8 @@
-# Subaru Forester Mission
+# Goal Savings Tracker
 
-A premium, offline-first Progressive Web App for tracking daily savings toward a
-**KSh 600,000** Subaru Forester by **1 July 2027** (internal goal: 1 June 2027,
-stretch goal: KSh 650,000).
+A premium, offline-first Progressive Web App for tracking daily savings
+toward one or more financial goals — originally built around a Subaru
+Forester example, now fully generic (see "Making it your own" below).
 
 ## Running it
 
@@ -12,11 +12,15 @@ No build step, no server, no internet connection required for core functionality
 2. Optionally "Install" it from the browser's address bar / menu to use it as a
    standalone app (PWA) on desktop or mobile.
 
-The only things that require an internet connection on first load are the
-Google Fonts, Chart.js, SheetJS (Excel export), and jsPDF (PDF export) CDN
-scripts. Once loaded once, the service worker caches the app shell so the
-dashboard, entry form, history, calendar, and analytics keep working fully
-offline afterward.
+The only things that require an internet connection on first load are Google
+Fonts, Chart.js, and — if Cloud Sync is configured — the Firebase SDK. Excel
+(SheetJS) and PDF (jsPDF) export libraries are loaded on demand the first
+time you actually click those export buttons, not on every page load, so
+they don't slow down opening the app. Once loaded, the service worker caches
+everything so the dashboard, entry form, history, calendar, and analytics
+keep working fully offline afterward. All scripts load with `defer` so the
+page renders as soon as its own HTML/CSS are ready rather than waiting on
+every script to download first.
 
 ## Project structure
 
@@ -106,6 +110,15 @@ The Expenses field on Daily Entry is paired with a category (Transport,
 Data/Airtime, Materials, Food, Other). Analytics shows a doughnut chart and
 totals list of where money is actually going.
 
+## Notes
+
+Whatever you type in the Notes field on Daily Entry is searchable and
+visible later on the **History** page — it's shown as its own column
+(truncated with the full text on hover) right next to that day's numbers,
+and the History search box matches against note text as well as dates.
+Click a row's edit button to open that day back up in Daily Entry if you
+want to read or change the full note.
+
 ## Weekday insights & the What-If calculator
 
 Analytics also shows your average net savings per day of the week (with the
@@ -146,6 +159,27 @@ A few things worth knowing about how the gate behaves:
   gated behind their own confirmation dialogs to prevent accidental clicks,
   but no longer require re-entering a PIN — being signed into the app at all
   is now the access control.
+
+### Reset App (replaces password reset)
+
+There's no "forgot password" email flow in this app. Instead, both the
+sign-in gate and Settings → **Danger Zone** have a **Reset App** button:
+
+- Type `DELETE` to confirm (no accidental clicks).
+- If you're signed in, it deletes your account and all cloud data, then
+  wipes local data too — you'd create a new account afterward to use sync
+  again.
+- If you're not signed in (e.g. you forgot your password and are stuck at
+  the gate), it wipes local data on this device only — your account and its
+  cloud data are **not** touched, since deleting a Firebase account requires
+  being authenticated as that account. This gets you an unblocked, usable
+  app again, but it does not recover access to the old account — you'd need
+  to remember the password to sign back into it, or just create a new one.
+
+Worth knowing plainly: removing password reset means a genuinely forgotten
+password has no in-app recovery path for that specific account's data — only
+a fresh start. If that trade-off doesn't suit you, Firebase's password reset
+could be re-added; it was removed here on request.
 
 ## Making it your own
 
@@ -232,6 +266,6 @@ goal entirely (Settings → Manage Goals) removes its data along with it.
 
 ## Customizing your targets
 
-Go to **Settings** to change the goal amount, stretch goal, deadline,
-internal goal date, daily/printing/trading targets, theme, and currency —
-every KPI and chart recalculates instantly.
+Go to **Settings** to change the goal amount, stretch goal, deadline (by
+date or by days-to-save), daily target, income sources, theme, and
+currency — every KPI and chart recalculates instantly.

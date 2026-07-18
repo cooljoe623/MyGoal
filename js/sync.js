@@ -102,6 +102,32 @@ const Sync = (() => {
     }
   }
 
+  /** Permanently deletes this account's cloud data AND the Firebase Auth
+   *  user itself. Requires being signed in — Firebase won't allow deleting
+   *  an arbitrary account without recent authentication, which is why this
+   *  can only be offered from Settings (post sign-in), not from the sign-in
+   *  gate. Local data is NOT wiped here — the caller (app.js) handles that
+   *  separately so it can also cover the "not signed in" / local-only case. */
+  async function deleteAccount() {
+    if (!ready || !currentUser) throw new Error('Not signed in.');
+    const uid = currentUser.uid;
+    if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+    try {
+      await db.collection('users').doc(uid).delete();
+    } catch (err) {
+      console.error('Could not delete cloud data before account deletion', err);
+      // Non-fatal — still attempt to delete the auth account itself below.
+    }
+    try {
+      await currentUser.delete();
+    } catch (err) {
+      if (err && err.code === 'auth/requires-recent-login') {
+        throw new Error('For security, deleting your account requires a recent sign-in. Sign out, sign back in, then try again.');
+      }
+      throw new Error(friendlyAuthError(err));
+    }
+  }
+
   function docRef() {
     return db.collection('users').doc(currentUser.uid);
   }
@@ -165,7 +191,7 @@ const Sync = (() => {
   function currentEmail() { return currentUser ? currentUser.email : null; }
 
   return {
-    init, isConfigured, signUp, signIn, signOutUser, resetPassword,
+    init, isConfigured, signUp, signIn, signOutUser, resetPassword, deleteAccount,
     scheduleSync, pushNow, pullAndMerge, isSignedIn, currentEmail
   };
 })();

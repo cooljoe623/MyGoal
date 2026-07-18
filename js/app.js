@@ -34,6 +34,7 @@ const App = (() => {
     bindCreateGoalModal();
     bindSyncUI();
     bindAuthGate();
+    bindResetAppModal();
     CalendarView.init();
 
     document.getElementById('quoteText').textContent = Utils.quoteOfTheDay();
@@ -169,7 +170,6 @@ const App = (() => {
       const goal = Storage.createGoal({
         name, targetAmount: amount, deadline,
         stretchGoal: Math.round(amount * 1.08),
-        internalDeadline: deadline,
       });
       Storage.setActiveGoalId(goal.id);
       closeCreateGoalModal();
@@ -179,6 +179,8 @@ const App = (() => {
       goToPage('settings');
     });
     document.getElementById('createGoalCancel').addEventListener('click', closeCreateGoalModal);
+    document.getElementById('newGoalDeadline').addEventListener('change', syncNewGoalDaysToSaveFromDeadline);
+    document.getElementById('newGoalDaysToSave').addEventListener('input', syncNewGoalDeadlineFromDaysToSave);
   }
   function openCreateGoalModal() {
     document.getElementById('createGoalForm').reset();
@@ -187,6 +189,24 @@ const App = (() => {
   }
   function closeCreateGoalModal() {
     document.getElementById('createGoalOverlay').classList.remove('show');
+  }
+
+  /** Deadline in the Create Goal modal is implicitly "days from today", since
+   *  a brand-new goal's start date defaults to today (there's no start-date
+   *  field in this quick-create form — that's editable afterward in Settings). */
+  function syncNewGoalDaysToSaveFromDeadline() {
+    const deadline = document.getElementById('newGoalDeadline').value;
+    const daysInput = document.getElementById('newGoalDaysToSave');
+    if (deadline) {
+      const days = Utils.daysBetween(Utils.todayStr(), deadline);
+      if (days > 0) daysInput.value = days;
+    }
+  }
+  function syncNewGoalDeadlineFromDaysToSave() {
+    const days = Number(document.getElementById('newGoalDaysToSave').value);
+    if (days > 0) {
+      document.getElementById('newGoalDeadline').value = Dash.addDays(Utils.todayStr(), days);
+    }
   }
 
   /* ---------------------------------------------------------
@@ -199,10 +219,8 @@ const App = (() => {
     document.getElementById('heroGoal').textContent = Utils.formatCurrency(stats.goalAmount);
     document.getElementById('heroStretch').textContent = Utils.formatCurrency(g.stretchGoal);
     document.getElementById('heroDeadline').textContent = g.deadline ? Utils.prettyDate(g.deadline) : '—';
-    document.getElementById('heroInternal').textContent = g.internalDeadline ? Utils.prettyDate(g.internalDeadline) : '—';
     document.getElementById('heroStart').textContent = g.startDate ? Utils.prettyDate(g.startDate) : '—';
     document.getElementById('countdownDays').textContent = Math.max(stats.daysRemaining, 0);
-    document.getElementById('countdownInternalDays').textContent = Math.max(stats.daysRemainingInternal, 0);
 
     document.getElementById('heroTitle').textContent = goalName.toUpperCase();
     document.title = `${goalName} — Savings Dashboard`;
@@ -258,9 +276,13 @@ const App = (() => {
     document.getElementById('kpiCurrentSavings').textContent = Utils.formatCurrency(stats.currentSavings);
     document.getElementById('kpiRemaining').textContent = Utils.formatCurrency(stats.remaining);
     document.getElementById('kpiDaysRemaining').textContent = Math.max(stats.daysRemaining, 0);
-    document.getElementById('kpiEstPurchase').textContent = stats.remaining > 0 ? Utils.prettyDate(stats.estimatedPurchaseDate) : 'Goal reached!';
+    document.getElementById('kpiEstPurchase').textContent = stats.remaining > 0
+      ? `${Utils.prettyDate(stats.estimatedPurchaseDate)} (${stats.daysNeededFromNow} day${stats.daysNeededFromNow === 1 ? '' : 's'})`
+      : 'Goal reached!';
     document.getElementById('kpiEstPurchaseAtTarget').textContent = stats.remaining <= 0 ? 'Goal reached!' :
-      (stats.estimatedPurchaseDateAtTarget ? Utils.prettyDate(stats.estimatedPurchaseDateAtTarget) : '— set a daily target in Settings —');
+      (stats.estimatedPurchaseDateAtTarget
+        ? `${Utils.prettyDate(stats.estimatedPurchaseDateAtTarget)} (${stats.daysNeededAtTarget} day${stats.daysNeededAtTarget === 1 ? '' : 's'})`
+        : '— set a daily target in Settings —');
     document.getElementById('kpiDailyAvg').textContent = Utils.formatCurrency(stats.currentDailyAverage);
     document.getElementById('kpiWeeklyAvg').textContent = Utils.formatCurrency(stats.weeklyAverage);
     document.getElementById('kpiMonthlyAvg').textContent = Utils.formatCurrency(stats.monthlyAverage);
@@ -638,7 +660,7 @@ const App = (() => {
 
     // Header row matches the active goal's current income sources
     document.getElementById('historyTableHeadRow').innerHTML =
-      `<th>Date</th>${sources.map(s => `<th>${escapeHtml(s.label)}</th>`).join('')}<th>Other</th><th>Expenses</th><th>Net Savings</th><th>Running Total</th><th>Actions</th>`;
+      `<th>Date</th>${sources.map(s => `<th>${escapeHtml(s.label)}</th>`).join('')}<th>Other</th><th>Expenses</th><th>Net Savings</th><th>Running Total</th><th>Notes</th><th>Actions</th>`;
 
     emptyMsg.style.display = entries.length ? 'none' : 'block';
 
@@ -650,6 +672,7 @@ const App = (() => {
         <td>${Utils.formatCurrency(e.expenses)}${e.expenseCategory ? `<span class="cat-tag">${e.expenseCategory}</span>` : ''}</td>
         <td class="${e.net >= 0 ? 'net-pos' : 'net-neg'}">${Utils.formatCurrency(e.net)}</td>
         <td>${Utils.formatCurrency(e.runningTotal)}</td>
+        <td class="note-cell" title="${e.notes ? escapeHtml(e.notes) : ''}">${e.notes ? escapeHtml(e.notes) : '<span class="note-empty">—</span>'}</td>
         <td class="row-actions">
           <button class="icon-btn small" data-action="edit" title="Edit">✎</button>
           <button class="icon-btn small" data-action="delete" title="Delete">✕</button>
@@ -719,10 +742,18 @@ const App = (() => {
     Notify.success('CSV exported successfully.');
   }
 
-  function exportExcel() {
+  async function exportExcel() {
     const rows = tableRowsForExport();
     if (!rows.length) { Notify.info('No data to export.'); return; }
-    if (typeof XLSX === 'undefined') { Notify.error('Excel export library unavailable offline.'); return; }
+    if (typeof XLSX === 'undefined') {
+      try {
+        Notify.info('Loading Excel export…');
+        await Utils.loadScriptOnce('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+      } catch (err) {
+        Notify.error('Could not load the Excel export library — check your connection.');
+        return;
+      }
+    }
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'History');
@@ -730,10 +761,18 @@ const App = (() => {
     Notify.success('Excel file exported successfully.');
   }
 
-  function exportPDF() {
+  async function exportPDF() {
     const rows = tableRowsForExport();
     if (!rows.length) { Notify.info('No data to export.'); return; }
-    if (typeof jspdf === 'undefined') { Notify.error('PDF export library unavailable offline.'); return; }
+    if (typeof jspdf === 'undefined') {
+      try {
+        Notify.info('Loading PDF export…');
+        await Utils.loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+      } catch (err) {
+        Notify.error('Could not load the PDF export library — check your connection.');
+        return;
+      }
+    }
     const { jsPDF } = jspdf;
     const doc = new jsPDF();
     const goalName = (Storage.getActiveGoal() || {}).name || 'Goal Tracker';
@@ -832,18 +871,58 @@ const App = (() => {
       }
     });
 
-    document.getElementById('btnGateForgotPassword').addEventListener('click', async () => {
-      const email = document.getElementById('gateEmail').value.trim();
-      const errEl = document.getElementById('gateError');
-      if (!email) { errEl.textContent = 'Enter your email above first, then click this again.'; return; }
-      try {
-        await Sync.resetPassword(email);
-        errEl.style.color = 'var(--green)';
-        errEl.textContent = 'Password reset email sent — check your inbox.';
-      } catch (err) {
-        errEl.style.color = '';
-        errEl.textContent = err.message;
+    document.getElementById('btnGateResetApp').addEventListener('click', () => openResetAppModal());
+  }
+
+  /* ---------------------------------------------------------
+     RESET APP (shared by the gate's "Reset App" and Settings'
+     "Danger Zone" — wipes all local data, and also deletes the
+     account + cloud data if currently signed in)
+  --------------------------------------------------------- */
+  function openResetAppModal() {
+    const signedIn = Sync.isSignedIn();
+    const email = Sync.currentEmail();
+    document.getElementById('resetAppMessage').innerHTML = signedIn
+      ? `This permanently deletes your account (<strong>${escapeHtml(email)}</strong>), all cloud data, and everything stored locally on this device. This cannot be undone.`
+      : (Sync.isConfigured()
+          ? `This permanently erases all data stored locally on this device. Your account (if you have one) will <strong>not</strong> be deleted — you can still sign in normally afterward, or create a new account to start fresh.`
+          : `This permanently erases all data stored locally on this device. This cannot be undone.`);
+    document.getElementById('resetAppConfirmText').value = '';
+    document.getElementById('resetAppError').textContent = '';
+    document.getElementById('resetAppOverlay').classList.add('show');
+    setTimeout(() => document.getElementById('resetAppConfirmText').focus(), 50);
+  }
+  function closeResetAppModal() {
+    document.getElementById('resetAppOverlay').classList.remove('show');
+  }
+
+  function bindResetAppModal() {
+    document.getElementById('resetAppCancel').addEventListener('click', closeResetAppModal);
+    document.getElementById('resetAppConfirm').addEventListener('click', async () => {
+      const errEl = document.getElementById('resetAppError');
+      if (document.getElementById('resetAppConfirmText').value.trim() !== 'DELETE') {
+        errEl.textContent = 'Type DELETE exactly to confirm.';
+        return;
       }
+      const confirmBtn = document.getElementById('resetAppConfirm');
+      confirmBtn.disabled = true;
+      if (Sync.isSignedIn()) {
+        try {
+          await Sync.deleteAccount();
+        } catch (err) {
+          errEl.textContent = err.message;
+          confirmBtn.disabled = false;
+          return;
+        }
+      }
+      Storage.eraseEverything();
+      Charts.destroyAll();
+      confirmBtn.disabled = false;
+      closeResetAppModal();
+      setDefaultEntryDate();
+      renderEverything();
+      loadSettingsForm();
+      Notify.warning('Everything erased. Starting fresh.');
     });
   }
 
@@ -852,42 +931,6 @@ const App = (() => {
   --------------------------------------------------------- */
   function bindSyncUI() {
     renderSyncStatus();
-
-    document.getElementById('btnSyncSignIn').addEventListener('click', async () => {
-      const email = document.getElementById('syncEmail').value.trim();
-      const password = document.getElementById('syncPassword').value;
-      if (!email || !password) { Notify.error('Enter your email and password.'); return; }
-      try {
-        await Sync.signIn(email, password);
-        Notify.success('Signed in — syncing…');
-      } catch (err) {
-        Notify.error(err.message);
-      }
-    });
-
-    document.getElementById('btnSyncSignUp').addEventListener('click', async () => {
-      const email = document.getElementById('syncEmail').value.trim();
-      const password = document.getElementById('syncPassword').value;
-      if (!email || !password) { Notify.error('Enter an email and password.'); return; }
-      if (password.length < 6) { Notify.error('Password must be at least 6 characters.'); return; }
-      try {
-        await Sync.signUp(email, password);
-        Notify.success('Account created — this device is now synced.');
-      } catch (err) {
-        Notify.error(err.message);
-      }
-    });
-
-    document.getElementById('btnSyncForgotPassword').addEventListener('click', async () => {
-      const email = document.getElementById('syncEmail').value.trim();
-      if (!email) { Notify.error('Enter your email above first, then click this again.'); return; }
-      try {
-        await Sync.resetPassword(email);
-        Notify.success('Password reset email sent — check your inbox.');
-      } catch (err) {
-        Notify.error(err.message);
-      }
-    });
 
     document.getElementById('btnSyncSignOut').addEventListener('click', () => {
       confirmAction('Sign Out', 'This device will stop syncing until you sign in again. Local data already on this device stays put.', async () => {
@@ -905,29 +948,33 @@ const App = (() => {
       loadSettingsForm();
       Notify.success('Sync complete.');
     });
+
+    document.getElementById('btnResetApp').addEventListener('click', () => openResetAppModal());
   }
 
   function renderSyncStatus() {
     const banner = document.getElementById('syncStatusBanner');
-    const authForm = document.getElementById('syncAuthForm');
     const signedInPanel = document.getElementById('syncSignedInPanel');
+    const dangerNote = document.getElementById('dangerZoneAccountNote');
 
     if (!Sync.isConfigured()) {
       banner.innerHTML = 'Cloud sync isn\'t set up yet. Your data stays on this device only. See <strong>SYNC_SETUP.md</strong> in the app folder for a 5-minute setup guide (free Firebase project + email/password sign-in).';
-      authForm.hidden = true;
       signedInPanel.hidden = true;
+      dangerNote.textContent = '';
       return;
     }
 
     if (Sync.isSignedIn()) {
       banner.innerHTML = 'Cloud sync is active. Changes on this device sync automatically to your account and to any other device signed in with it.';
-      authForm.hidden = true;
       signedInPanel.hidden = false;
       document.getElementById('syncSignedInText').innerHTML = `Signed in as <strong>${escapeHtml(Sync.currentEmail())}</strong>.`;
+      dangerNote.textContent = "If you're signed in, this also deletes your account and cloud data — you'd need to create a new account to use sync again.";
     } else {
-      banner.innerHTML = 'Sign in or create an account to sync your goals across devices. Your data stays local-only until you do.';
-      authForm.hidden = false;
+      // Configured but not signed in — the sign-in gate covers this case
+      // before Settings is ever reachable, so this is just a safety fallback.
+      banner.innerHTML = 'Sign in to sync your goals across devices.';
       signedInPanel.hidden = true;
+      dangerNote.textContent = '';
     }
   }
 
@@ -972,7 +1019,6 @@ const App = (() => {
     document.getElementById('setStretchGoal').value = goal.stretchGoal || '';
     document.getElementById('setStartDate').value = goal.startDate || '';
     document.getElementById('setDeadline').value = goal.deadline || '';
-    document.getElementById('setInternalDeadline').value = goal.internalDeadline || '';
     document.getElementById('setDailyTarget').value = goal.dailyTarget || '';
     document.getElementById('setTheme').value = app.theme;
     document.getElementById('setCurrency').value = app.currency;
@@ -1149,7 +1195,6 @@ const App = (() => {
         stretchGoal: Number(document.getElementById('setStretchGoal').value) || 650000,
         startDate: document.getElementById('setStartDate').value || Utils.todayStr(),
         deadline: document.getElementById('setDeadline').value || '2027-07-01',
-        internalDeadline: document.getElementById('setInternalDeadline').value || '2027-06-01',
         dailyTarget: Number(document.getElementById('setDailyTarget').value) || 1820,
       };
       if (pendingGoalPhoto !== undefined) goalPatch.photo = pendingGoalPhoto;
@@ -1210,6 +1255,12 @@ const App = (() => {
     document.addEventListener('keydown', (e) => {
       const gated = document.getElementById('authGateScreen').classList.contains('show');
       const creatingGoal = document.getElementById('createGoalOverlay').classList.contains('show');
+      const resettingApp = document.getElementById('resetAppOverlay').classList.contains('show');
+
+      // The Reset App modal can be triggered from the gate itself and
+      // auto-focuses its confirm-text input, so this needs to be checked
+      // before the general input/textarea handling below.
+      if (e.key === 'Escape' && resettingApp) { closeResetAppModal(); return; }
 
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
         if (e.key === 'Escape') e.target.blur();
@@ -1220,14 +1271,14 @@ const App = (() => {
         return;
       }
 
-      if (gated) return; // no shortcuts reach the app while the auth gate is up
+      if (gated) return; // no other shortcuts reach the app while the auth gate is up
 
       if (e.key === 'Escape') {
         if (creatingGoal) { closeCreateGoalModal(); return; }
         closeModal();
         document.getElementById('celebrateOverlay').classList.remove('show');
       }
-      if (creatingGoal) return;
+      if (creatingGoal || resettingApp) return;
 
       if (e.key.toLowerCase() === 'n') { goToPage('entry'); }
       const idx = Number(e.key);

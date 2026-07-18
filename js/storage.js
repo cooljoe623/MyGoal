@@ -24,7 +24,6 @@ const Storage = (() => {
     targetAmount: 600000,
     stretchGoal: 650000,
     deadline: '2027-07-01',
-    internalDeadline: '2027-06-01',
     dailyTarget: 1820,
     // Dynamic list of named income sources: [{ id, label, target }, ...]
     // "target" is that source's own daily target (used for the per-source
@@ -79,7 +78,6 @@ const Storage = (() => {
         stretchGoal: oldSettings.stretchGoal || DEFAULT_GOAL_FIELDS.stretchGoal,
         startDate: (oldMeta && oldMeta.startDate) || Utils.todayStr(),
         deadline: oldSettings.deadline || DEFAULT_GOAL_FIELDS.deadline,
-        internalDeadline: oldSettings.internalDeadline || DEFAULT_GOAL_FIELDS.internalDeadline,
         dailyTarget: oldSettings.dailyTarget || DEFAULT_GOAL_FIELDS.dailyTarget,
         incomeTarget1: oldSettings.printingTarget || 0,
         incomeTarget2: oldSettings.tradingTarget || 0,
@@ -443,7 +441,6 @@ const Storage = (() => {
         stretchGoal: s.stretchGoal || DEFAULT_GOAL_FIELDS.stretchGoal,
         startDate: meta.startDate || Utils.todayStr(),
         deadline: s.deadline || DEFAULT_GOAL_FIELDS.deadline,
-        internalDeadline: s.internalDeadline || DEFAULT_GOAL_FIELDS.internalDeadline,
         dailyTarget: s.dailyTarget || DEFAULT_GOAL_FIELDS.dailyTarget,
         incomeTarget1: s.printingTarget || 0,
         incomeTarget2: s.tradingTarget || 0,
@@ -491,7 +488,27 @@ const Storage = (() => {
       return { addedGoals: 0, updatedGoals: 0, addedEntries: 0, updatedEntries: 0 };
     }
 
-    const localGoals = getGoals();
+    let localGoals = getGoals();
+
+    // A brand-new, never-signed-in device auto-creates one untouched
+    // "My Goal" starter (see createDefaultGoalIfNone/createGoal). If the
+    // account being signed into already has real goals in the cloud, that
+    // local starter is a phantom — drop it rather than keeping it around
+    // as a spurious extra goal, so "3 goals in the cloud" reliably means
+    // "3 goals after signing in", not 4. A goal only counts as phantom if
+    // it has zero logged entries; anything with real entries is treated as
+    // genuine local data and gets unioned in as an additional goal instead.
+    let droppedPhantom = false;
+    if (localGoals.length === 1 && remote.goals.length > 0) {
+      const onlyLocal = localGoals[0];
+      const alreadyInRemote = remote.goals.some(rg => rg.id === onlyLocal.id);
+      const hasEntries = _read(KEYS.entries, []).some(e => e.goalId === onlyLocal.id);
+      if (!alreadyInRemote && !hasEntries) {
+        localGoals = [];
+        droppedPhantom = true;
+      }
+    }
+
     const localGoalMap = new Map(localGoals.map(g => [g.id, g]));
     let addedGoals = 0, updatedGoals = 0;
 
@@ -511,7 +528,7 @@ const Storage = (() => {
     });
     _write(KEYS.goals, Array.from(localGoalMap.values()));
 
-    const localEntries = _read(KEYS.entries, []);
+    const localEntries = droppedPhantom ? [] : _read(KEYS.entries, []);
     const localEntryMap = new Map(localEntries.map(e => [`${e.goalId}::${e.date}`, e]));
     let addedEntries = 0, updatedEntries = 0;
 
@@ -532,7 +549,7 @@ const Storage = (() => {
     });
     _write(KEYS.entries, Array.from(localEntryMap.values()));
 
-    const localAch = _read(KEYS.achievements, {});
+    const localAch = droppedPhantom ? {} : _read(KEYS.achievements, {});
     const remoteAch = remote.achievements && typeof remote.achievements === 'object' ? remote.achievements : {};
     Object.keys(remoteAch).forEach(goalId => {
       const merged = new Set([...(localAch[goalId] || []), ...(remoteAch[goalId] || [])]);
@@ -540,8 +557,19 @@ const Storage = (() => {
     });
     _write(KEYS.achievements, localAch);
 
-    if (!_read(KEYS.activeGoal, null) && remote.activeGoalId) {
+    // Adopt the remote's active goal whenever we dropped a phantom (the
+    // local activeGoal pointer would otherwise still point at the goal we
+    // just discarded) or when this device has no active goal set at all.
+    const currentActive = _read(KEYS.activeGoal, null);
+    const activeIsGone = currentActive && !localGoalMap.has(currentActive);
+    if ((droppedPhantom || !currentActive || activeIsGone) && remote.activeGoalId && localGoalMap.has(remote.activeGoalId)) {
       _write(KEYS.activeGoal, remote.activeGoalId);
+    } else if (activeIsGone) {
+      // Fallback: active goal vanished and remote didn't specify a valid
+      // replacement — just pick the first goal that exists so the app
+      // never ends up pointing at a nonexistent goal id.
+      const first = Array.from(localGoalMap.values())[0];
+      if (first) _write(KEYS.activeGoal, first.id);
     }
 
     if (remote.settings) {
@@ -551,7 +579,7 @@ const Storage = (() => {
     }
 
     migrateIncomeSourcesIfNeeded();
-    return { addedGoals, updatedGoals, addedEntries, updatedEntries };
+    return { addedGoals, updatedGoals, addedEntries, updatedEntries, droppedPhantom };
   }
 
   return {
