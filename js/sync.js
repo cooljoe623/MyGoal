@@ -46,9 +46,16 @@ const Sync = (() => {
     currentUser = user;
     if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
     if (user) {
+      // Reveal the app the moment sign-in is confirmed — that part is fast
+      // (a local session check). Don't make people stare at "checking your
+      // session" while we ALSO wait on the slower, network-bound data pull;
+      // that happens in the background and updates the UI when it lands.
+      if (typeof App !== 'undefined' && App.onSyncSignedIn) App.onSyncSignedIn(user);
       pullAndMerge().then((result) => {
         subscribeRealtime();
-        if (typeof App !== 'undefined' && App.onSyncSignedIn) App.onSyncSignedIn(user, result);
+        if (result && !result.firstSync && (result.addedGoals || result.updatedGoals || result.addedEntries || result.updatedEntries)) {
+          if (typeof App !== 'undefined' && App.onSyncRemoteUpdate) App.onSyncRemoteUpdate(result);
+        }
       });
     } else if (typeof App !== 'undefined' && App.onSyncSignedOut) {
       App.onSyncSignedOut();
@@ -170,11 +177,36 @@ const Sync = (() => {
   function scheduleSync() {
     if (!configured || !currentUser) return;
     clearTimeout(pushTimer);
-    pushTimer = setTimeout(pushNow, 2500);
+    pushTimer = setTimeout(pushNow, 1200);
+  }
+
+  /** If a debounced push is still pending, fire it immediately instead of
+   *  waiting out the timer — called when the tab is about to be hidden or
+   *  closed, since a pending setTimeout is silently lost if that happens
+   *  first (e.g. creating a goal, then immediately switching apps or
+   *  closing the tab, before the debounce delay elapses). This can't
+   *  guarantee the write finishes before the page actually unloads, but it
+   *  starts it as early as possible rather than not at all. */
+  function flushPendingSync() {
+    if (pushTimer) {
+      clearTimeout(pushTimer);
+      pushTimer = null;
+      pushNow();
+    }
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushPendingSync();
+    });
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', flushPendingSync);
   }
 
   async function pushNow() {
     if (!configured || !currentUser) return;
+    clearTimeout(pushTimer);
+    pushTimer = null;
     const data = Storage.exportBackup();
     data.updatedAt = new Date().toISOString();
     lastPushedAt = data.updatedAt;

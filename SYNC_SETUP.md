@@ -113,8 +113,20 @@ needs to know that domain is allowed to use this project's auth:
   with all 3 goals (and each one's full entry history) — signing in on a
   new phone or a new browser reproduces your whole account, not just
   whichever goal happened to be active when you last synced.
-- Every local change is pushed to the cloud a couple of seconds after you
-  make it (debounced, so rapid edits don't spam the network).
+- Every local change is pushed to the cloud about 1.2 seconds after you make
+  it (debounced, so rapid edits don't spam the network) — except creating,
+  editing, or deleting a goal itself, which pushes immediately rather than
+  waiting on the debounce, since those are infrequent, high-value changes
+  worth not risking. If you close the tab, switch apps, or your device
+  sleeps while a debounced push is still pending, the app makes a best-effort
+  attempt to flush it immediately rather than losing it — this can't be a
+  100% guarantee (the browser doesn't have to wait for it), but it
+  meaningfully narrows the window where a change could go unsynced.
+- Signing in shows your dashboard immediately once sign-in itself is
+  confirmed — it doesn't make you wait on the network round trip to fetch
+  and merge your account's data too. That merge happens in the background
+  and updates the screen (with a toast) the moment it completes, typically
+  a moment later.
 - Other signed-in devices get changes pushed to them in near-real-time while
   they're open.
 - If the same entry (same goal + date) gets edited on two devices before

@@ -175,6 +175,7 @@ const App = (() => {
       closeCreateGoalModal();
       Notify.success(`"${name}" created — set as your active goal.`);
       renderEverything();
+      Sync.pushNow(); // new goals are important enough to push immediately, not just debounced
       loadSettingsForm();
       goToPage('settings');
     });
@@ -979,16 +980,17 @@ const App = (() => {
   }
 
   // --- Hooks called by sync.js — kept on the public App API ---
-  function onSyncSignedIn(user, result) {
+  function onSyncSignedIn(user) {
+    // Called the moment sign-in is CONFIRMED, before the (slower) background
+    // data pull finishes — hides the gate and shows whatever's already
+    // local immediately, rather than making people wait on a network round
+    // trip just to see the app. If the pull brings in changes, that arrives
+    // separately via onSyncRemoteUpdate below and updates the view then.
     hideAuthGate();
     renderSyncStatus();
     renderEverything();
     loadSettingsForm();
-    if (result && !result.firstSync && (result.addedGoals || result.updatedGoals || result.addedEntries || result.updatedEntries)) {
-      Notify.success(`Synced — merged ${result.addedEntries + result.updatedEntries} entr${(result.addedEntries + result.updatedEntries) === 1 ? 'y' : 'ies'} from the cloud.`);
-    } else {
-      Notify.success('Signed in and synced.');
-    }
+    Notify.success('Signed in — syncing…');
   }
   function onSyncSignedOut() {
     if (Sync.isConfigured()) showAuthGate('form');
@@ -997,7 +999,7 @@ const App = (() => {
   function onSyncRemoteUpdate(result) {
     renderEverything(true); // true = don't immediately re-push what we just pulled
     loadSettingsForm();
-    Notify.info('Updated from another device.');
+    Notify.info(result.addedGoals ? `Synced ${result.addedGoals} goal${result.addedGoals === 1 ? '' : 's'} from your account.` : 'Synced updates from your account.');
   }
   function onSyncPushed() {
     // Silent — avoid toast spam on every autosave. Status banner already says "active".
@@ -1142,6 +1144,7 @@ const App = (() => {
           Charts.destroyAll();
           Notify.warning(`"${g.name}" deleted.`);
           renderEverything();
+          Sync.pushNow();
           loadSettingsForm();
         });
       });
@@ -1210,6 +1213,7 @@ const App = (() => {
       document.getElementById('whatifSlider').dataset.touched = '';
       Notify.success('Settings saved successfully.');
       renderEverything();
+      Sync.pushNow();
       loadSettingsForm();
     });
   }
