@@ -1,5 +1,9 @@
 # Goal Savings Tracker
 
+DOWNLOAD APP HERE:
+
+https://cooljoe623.github.io/MyGoal/
+
 A premium, offline-first Progressive Web App for tracking daily savings
 toward one or more financial goals — originally built around a Subaru
 Forester example, now fully generic (see "Making it your own" below).
