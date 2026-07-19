@@ -872,6 +872,20 @@ const App = (() => {
       }
     });
 
+    document.getElementById('btnGateForgotPassword').addEventListener('click', async () => {
+      const email = document.getElementById('gateEmail').value.trim();
+      const errEl = document.getElementById('gateError');
+      errEl.style.color = '';
+      if (!email) { errEl.textContent = 'Enter your email above first, then click this again.'; return; }
+      try {
+        await Sync.resetPassword(email);
+        errEl.style.color = 'var(--green)';
+        errEl.textContent = 'Password reset email sent — check your inbox.';
+      } catch (err) {
+        errEl.textContent = err.message;
+      }
+    });
+
     document.getElementById('btnGateResetApp').addEventListener('click', () => openResetAppModal());
   }
 
@@ -884,9 +898,9 @@ const App = (() => {
     const signedIn = Sync.isSignedIn();
     const email = Sync.currentEmail();
     document.getElementById('resetAppMessage').innerHTML = signedIn
-      ? `This permanently deletes your account (<strong>${escapeHtml(email)}</strong>), all cloud data, and everything stored locally on this device. This cannot be undone.`
+      ? `This will try to permanently delete your account (<strong>${escapeHtml(email)}</strong>), all cloud data, and everything stored locally on this device. This cannot be undone. <em>Note: if your sign-in session isn't recent, Firebase may block the account deletion for security — if that happens, you'll still be signed out and local data will still be erased, but the account itself would remain (you could recover it via "Forgot password").</em>`
       : (Sync.isConfigured()
-          ? `This permanently erases all data stored locally on this device. Your account (if you have one) will <strong>not</strong> be deleted — you can still sign in normally afterward, or create a new account to start fresh.`
+          ? `This permanently erases all data stored locally on this device. Your account (if you have one) will <strong>not</strong> be deleted — you can still sign in normally afterward, use "Forgot password" to regain access, or create a new account to start fresh.`
           : `This permanently erases all data stored locally on this device. This cannot be undone.`);
     document.getElementById('resetAppConfirmText').value = '';
     document.getElementById('resetAppError').textContent = '';
@@ -907,15 +921,25 @@ const App = (() => {
       }
       const confirmBtn = document.getElementById('resetAppConfirm');
       confirmBtn.disabled = true;
+      let accountDeleted = false;
+      let accountDeletionFailed = false;
+
       if (Sync.isSignedIn()) {
         try {
           await Sync.deleteAccount();
+          accountDeleted = true;
         } catch (err) {
-          errEl.textContent = err.message;
-          confirmBtn.disabled = false;
-          return;
+          // Most commonly Firebase's "requires-recent-login" security check —
+          // it won't let an old/stale session delete the account outright.
+          // Don't dead-end here: fall back to signing out (no password
+          // needed) and wiping local data, so Reset App always succeeds at
+          // getting the person to a clean, usable app either way.
+          accountDeletionFailed = true;
+          console.warn('Account deletion failed, falling back to local-only reset:', err.message);
+          try { await Sync.signOutUser(); } catch (e2) { /* ignore */ }
         }
       }
+
       Storage.eraseEverything();
       Charts.destroyAll();
       confirmBtn.disabled = false;
@@ -923,7 +947,14 @@ const App = (() => {
       setDefaultEntryDate();
       renderEverything();
       loadSettingsForm();
-      Notify.warning('Everything erased. Starting fresh.');
+
+      if (accountDeletionFailed) {
+        Notify.warning("Local data erased and you've been signed out. Your account itself couldn't be deleted for security reasons (it needs a recent sign-in) — it still exists with its cloud data. Use \"Forgot password\" to regain access if you want it back, or just continue fresh.", 9000);
+      } else if (accountDeleted) {
+        Notify.warning('Account and all data permanently deleted.');
+      } else {
+        Notify.warning('Everything erased. Starting fresh.');
+      }
     });
   }
 

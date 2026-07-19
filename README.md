@@ -160,26 +160,36 @@ A few things worth knowing about how the gate behaves:
   but no longer require re-entering a PIN — being signed into the app at all
   is now the access control.
 
-### Reset App (replaces password reset)
+### Account recovery: Forgot Password + Reset App
 
-There's no "forgot password" email flow in this app. Instead, both the
-sign-in gate and Settings → **Danger Zone** have a **Reset App** button:
+The sign-in gate has two separate options, for two different situations:
 
-- Type `DELETE` to confirm (no accidental clicks).
-- If you're signed in, it deletes your account and all cloud data, then
-  wipes local data too — you'd create a new account afterward to use sync
-  again.
-- If you're not signed in (e.g. you forgot your password and are stuck at
-  the gate), it wipes local data on this device only — your account and its
-  cloud data are **not** touched, since deleting a Firebase account requires
-  being authenticated as that account. This gets you an unblocked, usable
-  app again, but it does not recover access to the old account — you'd need
-  to remember the password to sign back into it, or just create a new one.
+**"Forgot password?"** — the normal recovery path. Enter your email and it
+sends a real Firebase password-reset link, exactly like most apps. This is
+intentionally the *only* way to prove you're the account owner without
+already knowing the password — it's what stops someone else from deleting
+your account just because they're sitting at your unlocked device, since
+they'd need access to your actual email inbox to complete it.
 
-Worth knowing plainly: removing password reset means a genuinely forgotten
-password has no in-app recovery path for that specific account's data — only
-a fresh start. If that trade-off doesn't suit you, Firebase's password reset
-could be re-added; it was removed here on request.
+**"Reset App (this device only)"** and Settings → **Danger Zone**'s
+**Reset App** button — for getting unstuck, not for recovering an account.
+Type `DELETE` to confirm (no accidental clicks), then:
+
+- If you're signed in with a *recent* session, it deletes your account and
+  all its cloud data, then wipes local data too.
+- If you're signed in but Firebase blocks the account deletion (its
+  "requires recent login" security check — common if the session has been
+  open a while), the app doesn't leave you stuck: it signs you out and wipes
+  local data anyway, so you always end up with a clean, usable app. The
+  account itself and its cloud data remain in that case — recoverable later
+  via "Forgot password" if you want them back.
+- If you're not signed in at all, it simply wipes local data on this
+  device — your account (if any) is untouched, since deleting a Firebase
+  account requires being authenticated as that account.
+
+In short: use **Forgot Password** if you want your account and data back.
+Use **Reset App** if you just want a clean slate and don't care about the
+old account either way.
 
 ## Making it your own
 
