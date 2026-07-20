@@ -14,11 +14,11 @@
    account required. Nothing breaks if you skip this file entirely.
 ============================================================ */
 
-const FIREBASE_CONFIG = {
+const firebaseConfig = {
   apiKey: "AIzaSyAn4uZgu5gMotwi5Vc5dqqEL_l3MQsbtuk",
   authDomain: "mygoal-aa00a.firebaseapp.com",
   projectId: "mygoal-aa00a",
   storageBucket: "mygoal-aa00a.firebasestorage.app",
   messagingSenderId: "554382601985",
-  appId: "1:554382601985:web:8fcdbfb6559340372af500"
+  appId: "1:554382601985:web:8fcdbfb6559340372af500",
 };
