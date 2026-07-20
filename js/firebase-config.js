@@ -15,10 +15,10 @@
 ============================================================ */
 
 const FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAn4uZgu5gMotwi5Vc5dqqEL_l3MQsbtuk",
+  authDomain: "mygoal-aa00a.firebaseapp.com",
+  projectId: "mygoal-aa00a",
+  storageBucket: "mygoal-aa00a.firebasestorage.app",
+  messagingSenderId: "554382601985",
+  appId: "1:554382601985:web:8fcdbfb6559340372af500"
 };
