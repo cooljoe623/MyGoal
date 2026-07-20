@@ -1032,6 +1032,14 @@ const App = (() => {
     loadSettingsForm();
     Notify.info(result.addedGoals ? `Synced ${result.addedGoals} goal${result.addedGoals === 1 ? '' : 's'} from your account.` : 'Synced updates from your account.');
   }
+  function onAccountSwitched(result) {
+    Charts.destroyAll();
+    setDefaultEntryDate();
+    renderEverything(true);
+    loadSettingsForm();
+    const goalCount = Storage.getGoals().length;
+    Notify.success(`Switched accounts — showing ${Sync.currentEmail()}'s ${goalCount} goal${goalCount === 1 ? '' : 's'}.`, 6000);
+  }
   function onSyncPushed() {
     // Silent — avoid toast spam on every autosave. Status banner already says "active".
   }
@@ -1361,7 +1369,7 @@ const App = (() => {
 
   return {
     init, openEntryForDate,
-    onSyncSignedIn, onSyncSignedOut, onSyncRemoteUpdate, onSyncPushed, onSyncError
+    onSyncSignedIn, onSyncSignedOut, onSyncRemoteUpdate, onSyncPushed, onSyncError, onAccountSwitched
   };
 })();
 

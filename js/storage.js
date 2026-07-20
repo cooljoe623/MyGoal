@@ -392,9 +392,18 @@ const Storage = (() => {
    *  entries, and app settings. Currently unused by the UI (there is no
    *  "erase all data" button since PIN/Forgot-PIN was removed) but kept
    *  available as a well-tested capability in case it's needed later. */
+  const LAST_UID_KEY = 'sfm_last_synced_uid';
+  function getLastSyncedUid() {
+    return localStorage.getItem(LAST_UID_KEY);
+  }
+  function setLastSyncedUid(uid) {
+    if (uid) localStorage.setItem(LAST_UID_KEY, uid);
+    else localStorage.removeItem(LAST_UID_KEY);
+  }
+
   function eraseEverything() {
     Object.values(KEYS).forEach(k => localStorage.removeItem(k));
-    [25, 50, 75, 100]; // no-op, per-goal keys are cleared implicitly since goals are gone
+    setLastSyncedUid(null);
     createDefaultGoalIfNone();
   }
 
@@ -592,7 +601,7 @@ const Storage = (() => {
     getEntries, getEntryByDate, upsertEntry, deleteEntryByDate, deleteLastEntry, netOf, incomeAmount,
     getUnlockedAchievements, unlockAchievement,
     hasMilestoneFlag, setMilestoneFlag,
-    resetGoalData, eraseEverything,
+    resetGoalData, eraseEverything, getLastSyncedUid, setLastSyncedUid,
     exportBackup, restoreBackup, mergeRemoteBackup
   };
 })();

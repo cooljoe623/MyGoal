@@ -53,7 +53,15 @@ const Sync = (() => {
       if (typeof App !== 'undefined' && App.onSyncSignedIn) App.onSyncSignedIn(user);
       pullAndMerge().then((result) => {
         subscribeRealtime();
-        if (result && !result.firstSync && (result.addedGoals || result.updatedGoals || result.addedEntries || result.updatedEntries)) {
+        if (!result) return;
+        const hasChanges = result.addedGoals || result.updatedGoals || result.addedEntries || result.updatedEntries;
+        if (result.switchedAccount) {
+          // Local data was just wiped and replaced with this account's cloud
+          // data — always refresh, even if that account happens to have no
+          // goals yet, since "nothing" is itself a change from what was
+          // showing a moment ago.
+          if (typeof App !== 'undefined' && App.onAccountSwitched) App.onAccountSwitched(result);
+        } else if (!result.firstSync && hasChanges) {
           if (typeof App !== 'undefined' && App.onSyncRemoteUpdate) App.onSyncRemoteUpdate(result);
         }
       });
@@ -142,13 +150,26 @@ const Sync = (() => {
   /** Pull the cloud copy once and merge it into local data (called right after sign-in). */
   async function pullAndMerge() {
     if (!currentUser) return null;
+
+    // If this device last synced a DIFFERENT account than the one signing
+    // in now, don't merge the two accounts' data together — that would
+    // leave the previous account's goals mixed permanently into the new
+    // one. Start this device clean for the new account instead.
+    const lastUid = Storage.getLastSyncedUid();
+    const switchedAccount = !!(lastUid && lastUid !== currentUser.uid);
+    if (switchedAccount) {
+      Storage.eraseEverything();
+    }
+
     try {
       const snap = await docRef().get();
+      Storage.setLastSyncedUid(currentUser.uid);
       if (!snap.exists) {
         await pushNow(); // first sync ever for this account — seed the cloud from this device
-        return { addedGoals: 0, updatedGoals: 0, addedEntries: 0, updatedEntries: 0, firstSync: true };
+        return { addedGoals: 0, updatedGoals: 0, addedEntries: 0, updatedEntries: 0, firstSync: true, switchedAccount };
       }
-      return Storage.mergeRemoteBackup(snap.data());
+      const result = Storage.mergeRemoteBackup(snap.data());
+      return Object.assign({}, result, { switchedAccount });
     } catch (err) {
       console.error('Initial sync pull failed', err);
       if (typeof App !== 'undefined' && App.onSyncError) App.onSyncError(err);
