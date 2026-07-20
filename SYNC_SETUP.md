@@ -152,3 +152,23 @@ needs to know that domain is allowed to use this project's auth:
   one. (If you'd already started actually using that local goal — logged
   any entries against it — it's treated as real data instead and kept
   alongside your account's other goals.)
+- **Switching to a different account on the same device replaces local data
+  with that account's data — it never merges two different accounts
+  together.** The app remembers which account it last synced on that
+  device; signing into a *different* one wipes local storage first, then
+  pulls that account's own data fresh. Signing into the *same* account again
+  (e.g. after signing out and back in) does not wipe anything, so any
+  changes you made locally in between are preserved and merged normally.
+
+  **If you tested multiple accounts on the same device before this fix
+  existed**, some of that cross-contamination may still be sitting in your
+  cloud data (a device that had two accounts' goals mixed together could
+  have pushed that mixed state up while it was in that state). To clean
+  that up:
+  1. On whichever device currently shows the *correct, complete* set of
+     goals for an account, make sure you're signed in and click **Settings
+     → Sync Now** to push that correct state to the cloud.
+  2. On any *other* device that might still show stale or mixed data: sign
+     out, then use **Reset App (this device only)** to clear its local
+     storage, then sign back in — it'll pull the now-correct cloud data
+     instead of whatever was cached locally before.
